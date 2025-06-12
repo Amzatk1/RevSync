@@ -4,7 +4,7 @@ Sources: TuneECU community, forum contributors, generic OEM maps, DIY tuning com
 """
 
 from django.core.management.base import BaseCommand
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model
 from django.utils import timezone
 from decimal import Decimal
 from datetime import timedelta
@@ -12,6 +12,8 @@ import random
 
 from bikes.models import Manufacturer, Motorcycle
 from tunes.models import TuneCategory, TuneType, SafetyRating, TuneCreator, Tune, TuneCompatibility
+
+User = get_user_model()
 
 
 class Command(BaseCommand):

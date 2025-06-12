@@ -7,6 +7,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     
     # API endpoints
+    path('api/users/', include('users.urls')),  # Phase 2: User authentication and profiles
     path('api/bikes/', include('bikes.urls')),
     path('api/tunes/', include('tunes.urls')),
     # path('api/safety/', include('safety.urls')),

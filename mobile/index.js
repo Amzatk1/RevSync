@@ -3,8 +3,7 @@
  * Main entry point
  */
 
-import {AppRegistry} from 'react-native';
-import App from './src/App';
-import {name as appName} from './package.json';
+import { registerRootComponent } from 'expo';
+import App from './App';
 
-AppRegistry.registerComponent(appName, () => App); 
+registerRootComponent(App); 

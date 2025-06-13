@@ -391,4 +391,341 @@ class UserStats(models.Model):
         """Calculate average fuel efficiency in L/100km"""
         if self.total_distance_km and self.total_fuel_consumed_liters:
             return round((self.total_fuel_consumed_liters / self.total_distance_km) * 100, 2)
-        return 0 
+        return 0
+
+
+# PHASE 2 ENHANCEMENT: SOCIAL MESSAGING SYSTEM
+
+class UserFriend(models.Model):
+    """User friends and connections"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='friends')
+    friend = models.ForeignKey(User, on_delete=models.CASCADE, related_name='friended_by')
+    
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('accepted', 'Accepted'),
+        ('rejected', 'Rejected'),
+        ('blocked', 'Blocked'),
+    ]
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'user_friends'
+        unique_together = ['user', 'friend']
+        indexes = [
+            models.Index(fields=['user', 'status']),
+            models.Index(fields=['friend', 'status']),
+        ]
+    
+    def __str__(self):
+        return f"{self.user.username} → {self.friend.username} ({self.get_status_display()})"
+
+
+class MessageThread(models.Model):
+    """Message threads between users"""
+    participants = models.ManyToManyField(User, related_name='message_threads')
+    title = models.CharField(max_length=100, blank=True)
+    is_group_thread = models.BooleanField(default=False)
+    
+    # Group settings (for group threads)
+    creator = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_threads')
+    avatar_url = models.URLField(blank=True)
+    
+    # Status
+    is_active = models.BooleanField(default=True)
+    last_message_at = models.DateTimeField(auto_now_add=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        db_table = 'message_threads'
+        indexes = [
+            models.Index(fields=['is_group_thread']),
+            models.Index(fields=['last_message_at']),
+            models.Index(fields=['is_active']),
+        ]
+    
+    def __str__(self):
+        if self.title:
+            return self.title
+        elif self.is_group_thread:
+            return f"Group Thread ({self.id})"
+        else:
+            participants = self.participants.all()
+            if participants.count() >= 2:
+                return f"{participants[0].username} & {participants[1].username}"
+            return f"Thread {self.id}"
+
+
+class Message(models.Model):
+    """Individual messages in threads"""
+    thread = models.ForeignKey(MessageThread, on_delete=models.CASCADE, related_name='messages')
+    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_messages')
+    
+    # Content
+    text = models.TextField()
+    has_attachment = models.BooleanField(default=False)
+    attachment_url = models.URLField(blank=True)
+    attachment_type = models.CharField(max_length=50, blank=True)  # image, video, file, ride, tune
+    
+    # Status
+    is_read = models.BooleanField(default=False)
+    read_at = models.DateTimeField(null=True, blank=True)
+    
+    # Special types
+    is_system_message = models.BooleanField(default=False)  # For notifications, alerts
+    is_ride_share = models.BooleanField(default=False)
+    ride_session_id = models.IntegerField(null=True, blank=True)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'messages'
+        indexes = [
+            models.Index(fields=['thread', '-created_at']),
+            models.Index(fields=['sender']),
+            models.Index(fields=['is_read']),
+            models.Index(fields=['is_system_message']),
+            models.Index(fields=['is_ride_share']),
+        ]
+    
+    def __str__(self):
+        return f"Message from {self.sender.username} in {self.thread}"
+
+
+class MessageReceipt(models.Model):
+    """Read receipts for messages"""
+    message = models.ForeignKey(Message, on_delete=models.CASCADE, related_name='receipts')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='message_receipts')
+    is_read = models.BooleanField(default=False)
+    read_at = models.DateTimeField(null=True, blank=True)
+    
+    class Meta:
+        db_table = 'message_receipts'
+        unique_together = ['message', 'user']
+        indexes = [
+            models.Index(fields=['user', 'is_read']),
+        ]
+    
+    def __str__(self):
+        status = "Read" if self.is_read else "Unread"
+        return f"{self.user.username}: {status} at {self.read_at or 'N/A'}"
+
+
+class Community(models.Model):
+    """Motorcycle communities and groups"""
+    name = models.CharField(max_length=100)
+    description = models.TextField()
+    short_description = models.CharField(max_length=200, blank=True)
+    
+    # Settings
+    visibility = models.CharField(
+        max_length=20,
+        choices=[
+            ('public', 'Public'),
+            ('private', 'Private'),
+            ('hidden', 'Hidden'),
+        ],
+        default='public'
+    )
+    
+    # Membership
+    creator = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='created_communities')
+    admins = models.ManyToManyField(User, related_name='administered_communities')
+    members = models.ManyToManyField(User, through='CommunityMembership', related_name='communities')
+    
+    # Content
+    avatar_url = models.URLField(blank=True)
+    banner_url = models.URLField(blank=True)
+    location = models.CharField(max_length=100, blank=True)
+    website = models.URLField(blank=True)
+    
+    # Focus areas
+    focus_tags = models.JSONField(default=list)  # ['sport_riding', 'track_days', 'maintenance']
+    primary_category = models.CharField(
+        max_length=50,
+        choices=[
+            ('riding_club', 'Riding Club'),
+            ('brand_enthusiasts', 'Brand Enthusiasts'),
+            ('technical', 'Technical Discussion'),
+            ('track_racing', 'Track & Racing'),
+            ('adventure', 'Adventure Riding'),
+            ('custom_builds', 'Custom Builds'),
+            ('beginner_focused', 'Beginner Focused'),
+            ('local_rides', 'Local Rides'),
+        ],
+        default='riding_club'
+    )
+    
+    # Stats
+    member_count = models.PositiveIntegerField(default=0)
+    post_count = models.PositiveIntegerField(default=0)
+    event_count = models.PositiveIntegerField(default=0)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'communities'
+        verbose_name_plural = 'Communities'
+        indexes = [
+            models.Index(fields=['visibility']),
+            models.Index(fields=['primary_category']),
+            models.Index(fields=['member_count']),
+            models.Index(fields=['post_count']),
+        ]
+    
+    def __str__(self):
+        return self.name
+
+
+class CommunityMembership(models.Model):
+    """User membership in communities"""
+    community = models.ForeignKey(Community, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    
+    # Membership status
+    STATUS_CHOICES = [
+        ('pending', 'Pending Approval'),
+        ('active', 'Active Member'),
+        ('moderator', 'Moderator'),
+        ('admin', 'Administrator'),
+        ('banned', 'Banned'),
+    ]
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    
+    # Activity
+    join_date = models.DateTimeField(auto_now_add=True)
+    last_active_date = models.DateTimeField(auto_now=True)
+    
+    # Notifications
+    receive_notifications = models.BooleanField(default=True)
+    
+    class Meta:
+        db_table = 'community_memberships'
+        unique_together = ['community', 'user']
+        indexes = [
+            models.Index(fields=['community', 'status']),
+            models.Index(fields=['user', 'status']),
+            models.Index(fields=['last_active_date']),
+        ]
+    
+    def __str__(self):
+        return f"{self.user.username} in {self.community.name} ({self.get_status_display()})"
+
+
+class CommunityPost(models.Model):
+    """Posts in community forums"""
+    community = models.ForeignKey(Community, on_delete=models.CASCADE, related_name='posts')
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='community_posts')
+    
+    # Content
+    title = models.CharField(max_length=200)
+    content = models.TextField()
+    has_images = models.BooleanField(default=False)
+    images = models.JSONField(default=list)  # URLs to images
+    
+    # Type
+    POST_TYPES = [
+        ('discussion', 'Discussion'),
+        ('question', 'Question'),
+        ('event', 'Event Announcement'),
+        ('ride_report', 'Ride Report'),
+        ('build_log', 'Build Log'),
+        ('review', 'Review'),
+        ('poll', 'Poll'),
+    ]
+    post_type = models.CharField(max_length=20, choices=POST_TYPES, default='discussion')
+    
+    # Special content
+    ride_session = models.ForeignKey('RideSession', on_delete=models.SET_NULL, null=True, blank=True, related_name='community_posts')
+    garage_bike = models.ForeignKey('UserGarage', on_delete=models.SET_NULL, null=True, blank=True, related_name='community_posts')
+    
+    # Moderation
+    is_pinned = models.BooleanField(default=False)
+    is_closed = models.BooleanField(default=False)
+    is_hidden = models.BooleanField(default=False)
+    
+    # Stats
+    view_count = models.PositiveIntegerField(default=0)
+    comment_count = models.PositiveIntegerField(default=0)
+    like_count = models.PositiveIntegerField(default=0)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'community_posts'
+        indexes = [
+            models.Index(fields=['community', '-created_at']),
+            models.Index(fields=['author']),
+            models.Index(fields=['post_type']),
+            models.Index(fields=['is_pinned', 'is_closed']),
+            models.Index(fields=['comment_count']),
+            models.Index(fields=['like_count']),
+        ]
+    
+    def __str__(self):
+        return f"{self.title} in {self.community.name}"
+
+
+class PostComment(models.Model):
+    """Comments on community posts"""
+    post = models.ForeignKey(CommunityPost, on_delete=models.CASCADE, related_name='comments')
+    author = models.ForeignKey(User, on_delete=models.CASCADE, related_name='post_comments')
+    parent_comment = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='replies')
+    
+    # Content
+    content = models.TextField()
+    has_image = models.BooleanField(default=False)
+    image_url = models.URLField(blank=True)
+    
+    # Moderation
+    is_hidden = models.BooleanField(default=False)
+    
+    # Stats
+    like_count = models.PositiveIntegerField(default=0)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        db_table = 'post_comments'
+        indexes = [
+            models.Index(fields=['post', '-created_at']),
+            models.Index(fields=['author']),
+            models.Index(fields=['parent_comment']),
+            models.Index(fields=['like_count']),
+        ]
+    
+    def __str__(self):
+        return f"Comment by {self.author.username} on {self.post.title}"
+
+
+class PointTransaction(models.Model):
+    """Model for tracking point transactions"""
+    TRANSACTION_TYPES = [
+        ('achievement', 'Achievement Unlocked'),
+        ('ride', 'Ride Completed'),
+        ('social', 'Social Interaction'),
+        ('purchase', 'Tune Purchase'),
+        ('referral', 'User Referral'),
+        ('bonus', 'Bonus Points'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='point_transactions')
+    points = models.IntegerField()
+    transaction_type = models.CharField(max_length=20, choices=TRANSACTION_TYPES)
+    description = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.transaction_type} - {self.points} points" 

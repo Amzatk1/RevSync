@@ -42,6 +42,7 @@ LOCAL_APPS = [
     'users',  # Phase 2: User profiles and authentication
     'bikes',
     'tunes',
+    'telemetry',  # Added telemetry app
     # 'accounts',
     # 'motorcycles',
     # 'hardware',

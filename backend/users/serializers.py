@@ -4,10 +4,14 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from .models import (
     User, RidingProfile, UserGarage, RideSession, 
-    UserAchievement, UserStats
+    UserAchievement, UserStats, UserFriend, MessageThread, Message,
+    Community, CommunityMembership, CommunityPost, PostComment,
+    PointTransaction
 )
 from bikes.models import Motorcycle
 from bikes.serializers import MotorcycleListSerializer
+from django.contrib.auth import get_user_model
+from django.db.models import Q
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
@@ -298,4 +302,332 @@ class UserDashboardSerializer(serializers.ModelSerializer):
         return {
             'total_bikes': garage.count(),
             'bikes': UserGarageSerializer(garage, many=True).data
-        } 
+        }
+
+
+# PHASE 2 ENHANCEMENT: SOCIAL MESSAGING SYSTEM SERIALIZERS
+
+class UserFriendSerializer(serializers.ModelSerializer):
+    """Serializer for user friendships"""
+    friend = UserPublicProfileSerializer()
+    
+    class Meta:
+        model = UserFriend
+        fields = ['id', 'friend', 'status', 'created_at', 'updated_at']
+
+
+class UserFriendRequestSerializer(serializers.ModelSerializer):
+    """Serializer for friend requests"""
+    user = UserPublicProfileSerializer()
+    
+    class Meta:
+        model = UserFriend
+        fields = ['id', 'user', 'status', 'created_at']
+
+
+class UserFriendCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating friend requests"""
+    friend_id = serializers.IntegerField(write_only=True)
+    
+    class Meta:
+        model = UserFriend
+        fields = ['friend_id']
+    
+    def validate_friend_id(self, value):
+        # Prevent self-friending
+        if value == self.context['request'].user.id:
+            raise serializers.ValidationError("You cannot send a friend request to yourself")
+        
+        # Check if friendship already exists
+        if UserFriend.objects.filter(
+            (Q(user=self.context['request'].user, friend_id=value) |
+             Q(user_id=value, friend=self.context['request'].user))
+        ).exists():
+            raise serializers.ValidationError("Friendship already exists")
+        
+        return value
+    
+    def create(self, validated_data):
+        return UserFriend.objects.create(
+            user=self.context['request'].user,
+            friend_id=validated_data['friend_id']
+        )
+
+
+class UserFriendActionSerializer(serializers.ModelSerializer):
+    """Serializer for friend request actions"""
+    class Meta:
+        model = UserFriend
+        fields = ['status']
+    
+    def validate_status(self, value):
+        if value not in ['accepted', 'rejected', 'blocked']:
+            raise serializers.ValidationError("Invalid status")
+        return value
+
+
+class MessageThreadSerializer(serializers.ModelSerializer):
+    """Serializer for message threads"""
+    participants = UserPublicProfileSerializer(many=True)
+    last_message = serializers.SerializerMethodField()
+    unread_count = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = MessageThread
+        fields = ['id', 'title', 'is_group_thread', 'participants', 'last_message', 'unread_count', 'last_message_at']
+    
+    def get_last_message(self, obj):
+        last_message = obj.messages.order_by('-created_at').first()
+        if last_message:
+            return {
+                'id': last_message.id,
+                'text': last_message.text,
+                'sender': last_message.sender.username,
+                'created_at': last_message.created_at
+            }
+        return None
+    
+    def get_unread_count(self, obj):
+        return obj.messages.filter(
+            sender__id__ne=self.context['request'].user.id,
+            is_read=False
+        ).count()
+
+
+class MessageThreadCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating message threads"""
+    participant_ids = serializers.ListField(
+        child=serializers.IntegerField(),
+        write_only=True
+    )
+    
+    class Meta:
+        model = MessageThread
+        fields = ['title', 'is_group_thread', 'participant_ids']
+    
+    def validate_participant_ids(self, value):
+        # Ensure at least one participant
+        if not value:
+            raise serializers.ValidationError("At least one participant is required")
+        
+        # Remove duplicates
+        value = list(set(value))
+        
+        # Verify all users exist
+        User = get_user_model()
+        existing_users = set(User.objects.filter(id__in=value).values_list('id', flat=True))
+        if len(existing_users) != len(value):
+            raise serializers.ValidationError("One or more users do not exist")
+        
+        return value
+    
+    def create(self, validated_data):
+        participant_ids = validated_data.pop('participant_ids')
+        thread = MessageThread.objects.create(**validated_data)
+        
+        # Add participants
+        thread.participants.add(self.context['request'].user)
+        thread.participants.add(*participant_ids)
+        
+        return thread
+
+
+class MessageThreadDetailSerializer(MessageThreadSerializer):
+    """Detailed serializer for message threads"""
+    class Meta(MessageThreadSerializer.Meta):
+        fields = MessageThreadSerializer.Meta.fields + ['created_at']
+
+
+class MessageSerializer(serializers.ModelSerializer):
+    """Serializer for messages"""
+    sender = UserPublicProfileSerializer()
+    
+    class Meta:
+        model = Message
+        fields = ['id', 'sender', 'text', 'has_attachment', 'attachment_url', 'attachment_type',
+                 'is_read', 'read_at', 'is_system_message', 'is_ride_share', 'ride_session_id',
+                 'created_at']
+
+
+class MessageCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating messages"""
+    class Meta:
+        model = Message
+        fields = ['text', 'has_attachment', 'attachment_url', 'attachment_type',
+                 'is_ride_share', 'ride_session_id']
+
+
+# COMMUNITY FEATURES SERIALIZERS
+
+class CommunitySerializer(serializers.ModelSerializer):
+    """Serializer for communities"""
+    creator = UserPublicProfileSerializer()
+    member_count = serializers.IntegerField(read_only=True)
+    post_count = serializers.IntegerField(read_only=True)
+    
+    class Meta:
+        model = Community
+        fields = ['id', 'name', 'short_description', 'visibility', 'creator',
+                 'avatar_url', 'banner_url', 'location', 'website',
+                 'focus_tags', 'primary_category', 'member_count', 'post_count',
+                 'created_at']
+
+
+class CommunityCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating communities"""
+    class Meta:
+        model = Community
+        fields = ['name', 'description', 'short_description', 'visibility',
+                 'avatar_url', 'banner_url', 'location', 'website',
+                 'focus_tags', 'primary_category']
+
+
+class CommunityDetailSerializer(CommunitySerializer):
+    """Detailed serializer for communities"""
+    description = serializers.CharField()
+    admins = UserPublicProfileSerializer(many=True)
+    
+    class Meta(CommunitySerializer.Meta):
+        fields = CommunitySerializer.Meta.fields + ['description', 'admins', 'updated_at']
+
+
+class CommunityMembershipSerializer(serializers.ModelSerializer):
+    """Serializer for community memberships"""
+    user = UserPublicProfileSerializer()
+    
+    class Meta:
+        model = CommunityMembership
+        fields = ['id', 'user', 'status', 'join_date', 'last_active_date',
+                 'receive_notifications']
+
+
+class CommunityPostSerializer(serializers.ModelSerializer):
+    """Serializer for community posts"""
+    author = UserPublicProfileSerializer()
+    comment_count = serializers.IntegerField(read_only=True)
+    like_count = serializers.IntegerField(read_only=True)
+    
+    class Meta:
+        model = CommunityPost
+        fields = ['id', 'title', 'content', 'has_images', 'images',
+                 'post_type', 'author', 'is_pinned', 'is_closed',
+                 'comment_count', 'like_count', 'created_at']
+
+
+class CommunityPostDetailSerializer(CommunityPostSerializer):
+    """Detailed serializer for community posts"""
+    view_count = serializers.IntegerField(read_only=True)
+    
+    class Meta(CommunityPostSerializer.Meta):
+        fields = CommunityPostSerializer.Meta.fields + ['view_count', 'updated_at']
+
+
+class PostCommentSerializer(serializers.ModelSerializer):
+    """Serializer for post comments"""
+    author = UserPublicProfileSerializer()
+    like_count = serializers.IntegerField(read_only=True)
+    replies = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = PostComment
+        fields = ['id', 'content', 'has_image', 'image_url',
+                 'author', 'like_count', 'replies', 'created_at']
+    
+    def get_replies(self, obj):
+        if obj.parent_comment is None:  # Only get replies for top-level comments
+            replies = obj.replies.filter(is_hidden=False).order_by('created_at')
+            return PostCommentSerializer(replies, many=True).data
+        return []
+
+
+# ENHANCED GAMIFICATION SERIALIZERS
+
+class AchievementWithProgressSerializer(serializers.ModelSerializer):
+    """Serializer for achievements with user progress"""
+    progress_percentage = serializers.SerializerMethodField()
+    is_completed = serializers.BooleanField(source='is_completed', read_only=True)
+    completed_at = serializers.DateTimeField(source='completed_at', read_only=True)
+    badge_level_display = serializers.CharField(source='get_badge_level_display', read_only=True)
+    achievement_type_display = serializers.CharField(source='get_achievement_type_display', read_only=True)
+
+    class Meta:
+        model = UserAchievement
+        fields = [
+            'id', 'achievement_type', 'achievement_type_display', 'name', 'description',
+            'icon_url', 'target_value', 'current_value', 'progress_percentage',
+            'is_completed', 'completed_at', 'points_awarded', 'badge_level',
+            'badge_level_display', 'created_at'
+        ]
+        read_only_fields = ['created_at']
+
+    def get_progress_percentage(self, obj):
+        if obj.target_value and obj.target_value > 0:
+            return min(100, (float(obj.current_value) / float(obj.target_value)) * 100)
+        return 0
+
+
+class LeaderboardEntrySerializer(serializers.ModelSerializer):
+    """Serializer for leaderboard entries"""
+    user = UserPublicProfileSerializer()
+    rank = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = UserStats
+        fields = ['user', 'total_points', 'total_distance_km', 'total_rides',
+                 'achievements_unlocked', 'rank']
+    
+    def get_rank(self, obj):
+        # Get the user's rank in the current category
+        category = self.context.get('category', 'points')
+        field_mapping = {
+            'points': 'total_points',
+            'distance': 'total_distance_km',
+            'rides': 'total_rides',
+            'achievements': 'achievements_unlocked',
+        }
+        order_field = field_mapping.get(category, 'total_points')
+        
+        # Count users with higher values
+        return UserStats.objects.filter(
+            **{f'{order_field}__gt': getattr(obj, order_field)}
+        ).count() + 1
+
+
+class PointTransactionSerializer(serializers.ModelSerializer):
+    """Serializer for point transactions"""
+    class Meta:
+        model = PointTransaction
+        fields = ['id', 'points', 'transaction_type', 'description', 'created_at']
+
+
+class UserRankingSerializer(serializers.ModelSerializer):
+    """Serializer for user rankings across categories"""
+    user = UserPublicProfileSerializer()
+    points_rank = serializers.SerializerMethodField()
+    distance_rank = serializers.SerializerMethodField()
+    rides_rank = serializers.SerializerMethodField()
+    achievements_rank = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = UserStats
+        fields = ['user', 'total_points', 'total_distance_km', 'total_rides',
+                 'achievements_unlocked', 'points_rank', 'distance_rank',
+                 'rides_rank', 'achievements_rank']
+    
+    def get_rank(self, obj, field):
+        # Count users with higher values
+        return UserStats.objects.filter(
+            **{f'{field}__gt': getattr(obj, field)}
+        ).count() + 1
+    
+    def get_points_rank(self, obj):
+        return self.get_rank(obj, 'total_points')
+    
+    def get_distance_rank(self, obj):
+        return self.get_rank(obj, 'total_distance_km')
+    
+    def get_rides_rank(self, obj):
+        return self.get_rank(obj, 'total_rides')
+    
+    def get_achievements_rank(self, obj):
+        return self.get_rank(obj, 'achievements_unlocked') 

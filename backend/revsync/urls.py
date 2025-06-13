@@ -10,6 +10,7 @@ urlpatterns = [
     path('api/users/', include('users.urls')),  # Phase 2: User authentication and profiles
     path('api/bikes/', include('bikes.urls')),
     path('api/tunes/', include('tunes.urls')),
+    path('api/telemetry/', include('telemetry.urls')),
     # path('api/safety/', include('safety.urls')),
     # path('api/marketplace/', include('marketplace.urls')),
     # path('api/compatibility/', include('compatibility.urls')),

@@ -15,6 +15,7 @@ import {
 } from "../components/awardWinning";
 import SettingsRow from "../components/awardWinning/SettingsRow";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import PrivacyPreferencesScreen from "./PrivacyPreferencesScreen";
 
 const version = "1.2.3";
 
@@ -34,6 +35,7 @@ export const SettingsScreen: React.FC<{
   const [theme, setTheme] = useState("system");
   const [textSize, setTextSize] = useState(1);
   const [layoutDensity, setLayoutDensity] = useState("comfortable");
+  const [privacyPrefsVisible, setPrivacyPrefsVisible] = useState(false);
 
   // Placeholder handlers
   const handleSignOut = () =>
@@ -48,9 +50,10 @@ export const SettingsScreen: React.FC<{
   );
 
   return (
-    <MomentumScrollView
-      style={{ flex: 1, backgroundColor: Theme.colors.content.background }}
-    >
+    <>
+      <MomentumScrollView
+        style={{ flex: 1, backgroundColor: Theme.colors.content.background }}
+      >
       {/* Header */}
       <View
         style={{
@@ -356,7 +359,7 @@ export const SettingsScreen: React.FC<{
         />
         <SettingsRow
           label="Privacy Preferences"
-          onPress={() => {}}
+          onPress={() => setPrivacyPrefsVisible(true)}
           right={
             <Icon
               name="chevron-right"
@@ -502,6 +505,11 @@ export const SettingsScreen: React.FC<{
         </Text>
       </View>
     </MomentumScrollView>
+    <PrivacyPreferencesScreen
+      visible={privacyPrefsVisible}
+      onClose={() => setPrivacyPrefsVisible(false)}
+    />
+    </>
   );
 };
 

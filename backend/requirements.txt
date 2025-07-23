@@ -17,10 +17,6 @@ django-storages==1.14.2
 boto3==1.34.34
 Pillow==10.2.0
 
-# Background Tasks
-django-q==1.3.9
-redis==3.5.3
-
 # API Documentation
 drf-spectacular==0.27.1
 
@@ -32,14 +28,9 @@ factory-boy==3.3.0
 cryptography==43.0.3
 pycryptodome==3.19.0
 
-# Hardware/OBD Interface
-pyserial==3.5
-python-can==4.3.1
-
 # Utilities
 python-decouple==3.8
 requests==2.31.0
-celery==5.3.4
 
 # Testing
 pytest-django==4.8.0
@@ -59,4 +50,20 @@ py-moneyed==3.0
 
 # Enhanced Validation
 jsonschema==4.21.1
-pydantic==2.5.3 
+pydantic==2.5.3
+
+# AI & Machine Learning (LLM Integration) - 100% FREE
+ollama==0.1.8  # FREE local Mistral 7B deployment
+sentence-transformers==2.3.1  # FREE embeddings
+transformers==4.36.2  # FREE Hugging Face models
+torch==2.1.2  # FREE PyTorch backend
+numpy==1.24.3
+scikit-learn==1.3.2
+scipy==1.11.4
+
+# Background Tasks
+django-q2==1.6.2
+redis==5.0.1
+
+# Environment & Configuration
+python-dotenv==1.0.0 

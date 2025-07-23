@@ -24,6 +24,12 @@ urlpatterns = [
     path('tunes/recent/', views.RecentTunesView.as_view(), name='recent-tunes'),
     path('tunes/free/', views.FreeTunesView.as_view(), name='free-tunes'),
     
+    # Creator Verification and Upload System
+    path('creator/apply/', views.apply_for_creator_verification, name='creator-apply'),
+    path('creator/dashboard/', views.creator_dashboard, name='creator-dashboard'),
+    path('upload/', views.TuneUploadView.as_view(), name='tune-upload'),
+    path('upload/file-types/', views.supported_tune_file_types, name='supported-file-types'),
+    
     # Utility endpoints
     path('stats/', views.tune_stats, name='stats'),
     path('search/suggestions/', views.search_suggestions, name='search-suggestions'),

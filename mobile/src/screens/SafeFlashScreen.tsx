@@ -1,29 +1,24 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
-  ScrollView,
-  TouchableOpacity,
   Alert,
-  StyleSheet,
-  Animated,
-  Modal,
   ActivityIndicator,
-  Dimensions,
   Platform,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { ProgressBar } from 'react-native-paper';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { useSelector, useDispatch } from 'react-redux';
-import LinearGradient from 'react-native-linear-gradient';
+  Animated,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import { useSelector, useDispatch } from "react-redux";
+import * as Haptics from "expo-haptics";
 
-import { Theme } from '../styles/theme';
-import { flashTune, checkSafetyConsents, grantConsent } from '../store/slices/flashSlice';
-import { RootState } from '../store';
-import { FlashSession, ConsentType, ValidationResult } from '../types/flash';
-
-const { width, height } = Dimensions.get('window');
+import {
+  IntelligentCard,
+  MomentumScrollView,
+  GestureModal,
+  AwardWinningTheme,
+} from "../components/awardWinning";
+import { RootState } from "../store";
 
 interface SafeFlashScreenProps {
   route: {
@@ -36,967 +31,920 @@ interface SafeFlashScreenProps {
   navigation: any;
 }
 
-const FLASH_STAGES = [
-  {
-    id: 'PREPARING',
-    title: 'Preparing Flash',
-    description: 'Initializing flash process and safety checks',
-    icon: 'cog-outline',
-    color: Theme.colors.primary,
-  },
-  {
-    id: 'BACKING_UP',
-    title: 'Creating Backup',
-    description: 'Backing up original ECU data for safety',
-    icon: 'backup-restore',
-    color: Theme.colors.warning,
-  },
-  {
-    id: 'VALIDATING',
-    title: 'Validating Tune',
-    description: 'Running comprehensive safety validation',
-    icon: 'shield-check',
-    color: Theme.colors.info,
-  },
-  {
-    id: 'PRE_CHECKS',
-    title: 'Safety Checks',
-    description: 'Verifying all safety requirements',
-    icon: 'clipboard-check',
-    color: Theme.colors.warning,
-  },
-  {
-    id: 'FLASHING',
-    title: 'Flashing ECU',
-    description: 'Writing tune to ECU - DO NOT DISCONNECT',
-    icon: 'flash',
-    color: Theme.colors.danger,
-  },
-  {
-    id: 'VERIFYING',
-    title: 'Verifying Flash',
-    description: 'Confirming successful flash completion',
-    icon: 'check-circle',
-    color: Theme.colors.success,
-  },
-];
+interface FlashStage {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  status: "pending" | "active" | "completed" | "error";
+  progress: number;
+}
 
-export const SafeFlashScreen: React.FC<SafeFlashScreenProps> = ({ route, navigation }) => {
-  const { tuneId, motorcycleId, purchaseId } = route.params;
+export const SafeFlashScreen: React.FC<SafeFlashScreenProps> = ({
+  route,
+  navigation,
+}) => {
+  const theme = AwardWinningTheme;
+  const colors = theme.colors;
+  const isIOS = Platform.OS === "ios";
   const dispatch = useDispatch();
-  
-  const { 
-    currentSession,
-    isFlashing,
-    progress,
-    currentStage,
-    validationResult,
-    requiredConsents,
-    grantedConsents,
-    error 
-  } = useSelector((state: RootState) => state.flash);
 
-  const [showConsentModal, setShowConsentModal] = useState(false);
-  const [currentConsent, setCurrentConsent] = useState<ConsentType | null>(null);
-  const [bikeInSafeMode, setBikeInSafeMode] = useState(false);
-  const [userConfirmedSafety, setUserConfirmedSafety] = useState(false);
-  const [showEmergencyModal, setShowEmergencyModal] = useState(false);
-  
-  const progressAnimation = useRef(new Animated.Value(0)).current;
-  const pulseAnimation = useRef(new Animated.Value(1)).current;
+  const { tuneId, motorcycleId, purchaseId } = route.params;
+
+  const [isFlashing, setIsFlashing] = useState(false);
+  const [currentStage, setCurrentStage] = useState(0);
+  const [overallProgress, setOverallProgress] = useState(0);
+  const [safetyModalVisible, setSafetyModalVisible] = useState(false);
+  const [confirmModalVisible, setConfirmModalVisible] = useState(false);
+  const [completedModalVisible, setCompletedModalVisible] = useState(false);
+
+  const progressAnim = useRef(new Animated.Value(0)).current;
+
+  const [flashStages, setFlashStages] = useState<FlashStage[]>([
+    {
+      id: "safety",
+      title: "Safety Verification",
+      description: "Checking safety parameters and permissions",
+      icon: "shield-check",
+      status: "pending",
+      progress: 0,
+    },
+    {
+      id: "backup",
+      title: "ECU Backup",
+      description: "Creating safety backup of current ECU state",
+      icon: "content-save",
+      status: "pending",
+      progress: 0,
+    },
+    {
+      id: "validation",
+      title: "Tune Validation",
+      description: "Validating tune compatibility and integrity",
+      icon: "check-circle",
+      status: "pending",
+      progress: 0,
+    },
+    {
+      id: "flashing",
+    title: "Flashing ECU",
+      description: "Writing new tune to ECU memory",
+    icon: "flash",
+      status: "pending",
+      progress: 0,
+    },
+    {
+      id: "verification",
+      title: "Verification",
+      description: "Verifying successful flash and functionality",
+      icon: "check-decagram",
+      status: "pending",
+      progress: 0,
+    },
+  ]);
+
+  const [tuneInfo, setTuneInfo] = useState({
+    name: "Stage 2 Performance",
+    creator: "ProTuner",
+    version: "2.1.4",
+    power_gain: "+25 HP",
+    torque_gain: "+30 lb-ft",
+    compatibility: "2020-2024 Yamaha R6",
+    file_size: "2.4 MB",
+    checksum: "a1b2c3d4",
+  });
+
+  const [motorcycleInfo, setMotorcycleInfo] = useState({
+    make: "Yamaha",
+    model: "R6",
+    year: 2020,
+    vin: "JYA1234567890",
+    current_tune: "Stock ECU",
+    ecu_type: "Bosch ME17",
+    flash_count: 3,
+  });
 
   useEffect(() => {
-    // Check required consents when screen loads
-    dispatch(checkSafetyConsents({ tuneId, motorcycleId }));
-  }, [dispatch, tuneId, motorcycleId]);
-
-  useEffect(() => {
-    // Animate progress bar
-    Animated.timing(progressAnimation, {
-      toValue: progress,
-      duration: 300,
-      useNativeDriver: false,
-    }).start();
-  }, [progress, progressAnimation]);
-
-  useEffect(() => {
-    // Pulse animation for critical stages
-    if (currentStage === 'FLASHING') {
-      const pulse = () => {
-        Animated.sequence([
-          Animated.timing(pulseAnimation, {
-            toValue: 1.1,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnimation, {
-            toValue: 1,
-            duration: 1000,
-            useNativeDriver: true,
-          }),
-        ]).start(() => {
-          if (currentStage === 'FLASHING') {
-            pulse();
-          }
-        });
-      };
-      pulse();
-    }
-  }, [currentStage, pulseAnimation]);
-
-  const handleConsentRequired = useCallback((consentType: ConsentType) => {
-    setCurrentConsent(consentType);
-    setShowConsentModal(true);
+    // Show safety modal on mount
+    setSafetyModalVisible(true);
   }, []);
 
-  const handleGrantConsent = useCallback(async () => {
-    if (!currentConsent) return;
-    
-    try {
-      await dispatch(grantConsent({
-        consentType: currentConsent,
-        tuneId,
-        motorcycleId,
-      })).unwrap();
-      
-      setShowConsentModal(false);
-      setCurrentConsent(null);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to grant consent. Please try again.');
-    }
-  }, [dispatch, currentConsent, tuneId, motorcycleId]);
-
-  const handleStartFlash = useCallback(async () => {
-    if (!bikeInSafeMode || !userConfirmedSafety) {
-      Alert.alert(
-        'Safety Check Failed',
-        'Please ensure your motorcycle is turned off, in neutral, and all safety requirements are met.'
-      );
-      return;
-    }
-
-    // Final safety confirmation
-    Alert.alert(
-      '⚠️ FINAL SAFETY CONFIRMATION',
-      'You are about to modify your motorcycle\'s ECU. This process:\n\n• Cannot be interrupted once started\n• May void your warranty\n• Requires you to keep the bike stationary\n• Is done at your own risk\n\nAre you absolutely certain you want to proceed?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'PROCEED',
-          style: 'destructive',
-          onPress: () => {
-            dispatch(flashTune({
-              tuneId,
-              motorcycleId,
-              purchaseId,
-              bikeInSafeMode,
-              userConfirmedSafety,
-            }));
-          },
-        },
-      ]
-    );
-  }, [dispatch, tuneId, motorcycleId, purchaseId, bikeInSafeMode, userConfirmedSafety]);
-
-  const handleEmergencyStop = useCallback(() => {
-    Alert.alert(
-      '🚨 EMERGENCY STOP',
-      'This will attempt to stop the flash process and restore your original ECU data. Only use this if there is a serious problem.\n\nProceed with emergency stop?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'EMERGENCY STOP',
-          style: 'destructive',
-          onPress: () => {
-            // Implement emergency stop logic
-            setShowEmergencyModal(true);
-          },
-        },
-      ]
-    );
-  }, []);
-
-  const renderProgressIndicator = () => {
-    const currentStageIndex = FLASH_STAGES.findIndex(stage => stage.id === currentStage);
-    
-    return (
-      <View style={styles.progressContainer}>
-        <Text style={styles.progressTitle}>Flash Progress</Text>
-        <ProgressBar
-          progress={progress / 100}
-          color={Theme.colors.primary}
-          style={styles.progressBar}
-        />
-        <Text style={styles.progressText}>{progress}%</Text>
-        
-        <View style={styles.stagesContainer}>
-          {FLASH_STAGES.map((stage, index) => {
-            const isActive = index === currentStageIndex;
-            const isCompleted = index < currentStageIndex;
-            const isCritical = stage.id === 'FLASHING';
-            
-            return (
-              <Animated.View
-                key={stage.id}
-                style={[
-                  styles.stageItem,
-                  isActive && styles.stageActive,
-                  isCompleted && styles.stageCompleted,
-                  isCritical && isActive && { transform: [{ scale: pulseAnimation }] },
-                ]}
-              >
-                <View
-                  style={[
-                    styles.stageIcon,
-                    { backgroundColor: isActive ? stage.color : Theme.colors.border },
-                  ]}
-                >
-                  <Icon
-                    name={isCompleted ? 'check' : stage.icon}
-                    size={20}
-                    color={isActive || isCompleted ? Theme.colors.white : Theme.colors.textSecondary}
-                  />
-                </View>
-                <View style={styles.stageContent}>
-                  <Text style={[
-                    styles.stageTitle,
-                    isActive && styles.stageTitleActive,
-                  ]}>
-                    {stage.title}
-                  </Text>
-                  <Text style={styles.stageDescription}>
-                    {stage.description}
-                  </Text>
-                </View>
-              </Animated.View>
-            );
-          })}
-        </View>
-      </View>
+  const updateStageProgress = (
+    stageIndex: number,
+    progress: number,
+    status?: FlashStage["status"]
+  ) => {
+    setFlashStages((prev) =>
+      prev.map((stage, index) =>
+        index === stageIndex
+          ? { ...stage, progress, status: status || stage.status }
+          : stage
+      )
     );
   };
 
-  const renderSafetyChecklist = () => {
-    const missingConsents = requiredConsents.filter(
-      consent => !grantedConsents.includes(consent)
-    );
+  const startFlashProcess = async () => {
+    if (isFlashing) return;
 
-    return (
-      <View style={styles.safetyContainer}>
-        <Text style={styles.safetyTitle}>🛡️ Safety Requirements</Text>
-        
-        {/* Consent Requirements */}
-        <View style={styles.checklistSection}>
-          <Text style={styles.checklistHeader}>Legal Consents</Text>
-          {requiredConsents.map(consent => {
-            const isGranted = grantedConsents.includes(consent);
-            return (
-              <TouchableOpacity
-                key={consent}
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    setIsFlashing(true);
+    setCurrentStage(0);
+    setOverallProgress(0);
+
+    // Safety stage
+    updateStageProgress(0, 0, "active");
+    await simulateStageProgress(0, async (progress) => {
+      updateStageProgress(0, progress);
+      setOverallProgress(progress * 0.2);
+    });
+    updateStageProgress(0, 100, "completed");
+
+    // Backup stage
+    setCurrentStage(1);
+    updateStageProgress(1, 0, "active");
+    await simulateStageProgress(1, async (progress) => {
+      updateStageProgress(1, progress);
+      setOverallProgress(20 + progress * 0.2);
+    });
+    updateStageProgress(1, 100, "completed");
+
+    // Validation stage
+    setCurrentStage(2);
+    updateStageProgress(2, 0, "active");
+    await simulateStageProgress(2, async (progress) => {
+      updateStageProgress(2, progress);
+      setOverallProgress(40 + progress * 0.2);
+    });
+    updateStageProgress(2, 100, "completed");
+
+    // Flashing stage (critical)
+    setCurrentStage(3);
+    updateStageProgress(3, 0, "active");
+    await simulateStageProgress(3, async (progress) => {
+      updateStageProgress(3, progress);
+      setOverallProgress(60 + progress * 0.3);
+
+      // Haptic feedback at critical points
+      if (progress === 50) {
+        await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      }
+    });
+    updateStageProgress(3, 100, "completed");
+
+    // Verification stage
+    setCurrentStage(4);
+    updateStageProgress(4, 0, "active");
+    await simulateStageProgress(4, async (progress) => {
+      updateStageProgress(4, progress);
+      setOverallProgress(90 + progress * 0.1);
+    });
+    updateStageProgress(4, 100, "completed");
+
+    // Completion
+    setOverallProgress(100);
+    setIsFlashing(false);
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setCompletedModalVisible(true);
+  };
+
+  const simulateStageProgress = (
+    stage: number,
+    onProgress: (progress: number) => Promise<void>
+  ) => {
+    return new Promise<void>((resolve) => {
+      let progress = 0;
+      const interval = setInterval(async () => {
+        progress += Math.random() * 15 + 5; // Variable progress speed
+        if (progress >= 100) {
+          progress = 100;
+          clearInterval(interval);
+          await onProgress(progress);
+          resolve();
+        } else {
+          await onProgress(progress);
+        }
+      }, 200 + Math.random() * 300); // Variable timing for realism
+    });
+  };
+
+  const getStageStatusColor = (status: FlashStage["status"]) => {
+    switch (status) {
+      case "active":
+        return colors.accent.primary;
+      case "completed":
+        return colors.semantic.success;
+      case "error":
+        return colors.semantic.error;
+      default:
+        return colors.content.tertiary;
+    }
+  };
+
+  const handleSafetyAccept = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSafetyModalVisible(false);
+    setConfirmModalVisible(true);
+  };
+
+  const handleConfirmFlash = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    setConfirmModalVisible(false);
+    startFlashProcess();
+  };
+
+  const handleCancel = async () => {
+    await Haptics.selectionAsync();
+    if (isFlashing) {
+    Alert.alert(
+        "⚠️ Cancel Flash?",
+        "Canceling during flash process may damage your ECU. Are you sure?",
+      [
+          { text: "Continue Flashing", style: "default" },
+        {
+            text: "Cancel Flash",
+          style: "destructive",
+          onPress: () => {
+              setIsFlashing(false);
+              navigation.goBack();
+          },
+        },
+      ]
+    );
+    } else {
+      navigation.goBack();
+    }
+  };
+
+  const renderProgressIndicator = () => (
+    <IntelligentCard
+      variant="elevated"
+      bloomEnabled={false}
+      style={{
+        marginHorizontal: theme.spacing.base,
+        marginBottom: theme.spacing.content.section,
+      }}
+    >
+      <View style={{ gap: theme.spacing.base }}>
+        {/* Overall Progress */}
+        <View>
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: theme.spacing.sm,
+            }}
+          >
+            <Text
                 style={[
-                  styles.checklistItem,
-                  isGranted && styles.checklistItemCompleted,
-                ]}
-                onPress={() => !isGranted && handleConsentRequired(consent)}
-                disabled={isGranted}
+                isIOS
+                  ? theme.typography.ios.labelLarge
+                  : theme.typography.material.labelLarge,
+                { color: colors.content.primary, fontWeight: "600" },
+              ]}
+            >
+              Overall Progress
+            </Text>
+            <Text
+                  style={[
+                isIOS
+                  ? theme.typography.ios.labelLarge
+                  : theme.typography.material.labelLarge,
+                { color: colors.accent.primary, fontWeight: "600" },
+              ]}
+            >
+              {Math.round(overallProgress)}%
+            </Text>
+          </View>
+
+          <View
+            style={{
+              height: 8,
+              backgroundColor: colors.content.backgroundElevated,
+              borderRadius: 4,
+              overflow: "hidden",
+            }}
+          >
+            <Animated.View
+              style={{
+                height: "100%",
+                backgroundColor: colors.accent.primary,
+                width: `${overallProgress}%`,
+                borderRadius: 4,
+              }}
+                  />
+                </View>
+        </View>
+
+        {/* Current Stage */}
+        {isFlashing && (
+          <View>
+                  <Text
+                    style={[
+                isIOS
+                  ? theme.typography.ios.labelMedium
+                  : theme.typography.material.labelMedium,
+                { color: colors.content.secondary },
+              ]}
+            >
+              Current: {flashStages[currentStage]?.title}
+                  </Text>
+                </View>
+        )}
+        </View>
+    </IntelligentCard>
+  );
+
+  const renderFlashStages = () => (
+    <View style={{ paddingHorizontal: theme.spacing.base }}>
+      <Text
+                style={[
+          isIOS
+            ? theme.typography.ios.headlineMedium
+            : theme.typography.material.headlineMedium,
+          {
+            color: colors.content.primary,
+            marginBottom: theme.spacing.content.section,
+          },
+        ]}
+      >
+        Flash Process
+      </Text>
+
+      {flashStages.map((stage, index) => (
+        <IntelligentCard
+          key={stage.id}
+          variant={stage.status === "active" ? "elevated" : "minimal"}
+          bloomEnabled={false}
+          style={{
+            marginBottom: theme.spacing.content.cardOuter,
+            borderLeftWidth: 4,
+            borderLeftColor: getStageStatusColor(stage.status),
+          }}
+        >
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: theme.spacing.base,
+            }}
               >
                 <Icon
-                  name={isGranted ? 'check-circle' : 'circle-outline'}
+              name={stage.icon}
                   size={24}
-                  color={isGranted ? Theme.colors.success : Theme.colors.textSecondary}
-                />
-                <Text style={[
-                  styles.checklistText,
-                  isGranted && styles.checklistTextCompleted,
-                ]}>
-                  {consent.replace('_', ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase())}
+              color={getStageStatusColor(stage.status)}
+            />
+
+            <View style={{ flex: 1 }}>
+                <Text
+                  style={[
+                  isIOS
+                    ? theme.typography.ios.labelXLarge
+                    : theme.typography.material.labelXLarge,
+                  {
+                    color: colors.content.primary,
+                    marginBottom: theme.spacing.xxxs,
+                  },
+                ]}
+              >
+                {stage.title}
                 </Text>
-                {!isGranted && (
-                  <Icon
-                    name="chevron-right"
-                    size={20}
-                    color={Theme.colors.textSecondary}
+
+              <Text
+            style={[
+                  isIOS
+                    ? theme.typography.ios.bodyMedium
+                    : theme.typography.material.bodyMedium,
+                  { color: colors.content.secondary },
+                ]}
+              >
+                {stage.description}
+              </Text>
+
+              {stage.status === "active" && (
+                <View
+                  style={{
+                    height: 4,
+                    backgroundColor: colors.content.backgroundElevated,
+                    borderRadius: 2,
+                    marginTop: theme.spacing.sm,
+                    overflow: "hidden",
+                  }}
+                >
+                  <Animated.View
+                    style={{
+                      height: "100%",
+                      backgroundColor: colors.accent.primary,
+                      width: `${stage.progress}%`,
+                      borderRadius: 2,
+                    }}
                   />
-                )}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+                </View>
+              )}
+            </View>
 
-        {/* Physical Safety Requirements */}
-        <View style={styles.checklistSection}>
-          <Text style={styles.checklistHeader}>Physical Safety</Text>
-          
-          <TouchableOpacity
-            style={[
-              styles.checklistItem,
-              bikeInSafeMode && styles.checklistItemCompleted,
-            ]}
-            onPress={() => setBikeInSafeMode(!bikeInSafeMode)}
-          >
-            <Icon
-              name={bikeInSafeMode ? 'check-circle' : 'circle-outline'}
-              size={24}
-              color={bikeInSafeMode ? Theme.colors.success : Theme.colors.textSecondary}
-            />
-            <Text style={[
-              styles.checklistText,
-              bikeInSafeMode && styles.checklistTextCompleted,
-            ]}>
-              Motorcycle is OFF and in NEUTRAL
-            </Text>
-          </TouchableOpacity>
+            {stage.status === "active" && (
+              <ActivityIndicator size="small" color={colors.accent.primary} />
+            )}
+            {stage.status === "completed" && (
+              <Icon name="check" size={20} color={colors.semantic.success} />
+            )}
+            {stage.status === "error" && (
+              <Icon name="alert" size={20} color={colors.semantic.error} />
+            )}
+          </View>
+        </IntelligentCard>
+      ))}
+    </View>
+  );
 
-          <TouchableOpacity
-            style={[
-              styles.checklistItem,
-              userConfirmedSafety && styles.checklistItemCompleted,
-            ]}
-            onPress={() => setUserConfirmedSafety(!userConfirmedSafety)}
-          >
-            <Icon
-              name={userConfirmedSafety ? 'check-circle' : 'circle-outline'}
-              size={24}
-              color={userConfirmedSafety ? Theme.colors.success : Theme.colors.textSecondary}
-            />
-            <Text style={[
-              styles.checklistText,
-              userConfirmedSafety && styles.checklistTextCompleted,
-            ]}>
-              I understand the risks and responsibilities
+  const renderTuneInfo = () => (
+    <View style={{ paddingHorizontal: theme.spacing.base }}>
+            <Text
+              style={[
+          isIOS
+            ? theme.typography.ios.headlineMedium
+            : theme.typography.material.headlineMedium,
+          {
+            color: colors.content.primary,
+            marginBottom: theme.spacing.content.section,
+          },
+        ]}
+      >
+        Tune Information
             </Text>
-          </TouchableOpacity>
+
+      <IntelligentCard
+        variant="elevated"
+        textContent={true}
+        bloomEnabled={false}
+        style={{ marginBottom: theme.spacing.content.section }}
+      >
+        <View style={{ gap: theme.spacing.base }}>
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <Text
+            style={[
+                isIOS
+                  ? theme.typography.ios.headlineSmall
+                  : theme.typography.material.headlineSmall,
+                { color: colors.content.primary },
+              ]}
+            >
+              {tuneInfo.name}
+            </Text>
+            <View
+              style={{
+                paddingHorizontal: theme.spacing.sm,
+                paddingVertical: theme.spacing.xs,
+                backgroundColor: colors.accent.primarySubtle,
+                borderRadius: theme.spacing.xs,
+              }}
+            >
+            <Text
+              style={[
+                  isIOS
+                    ? theme.typography.ios.labelSmall
+                    : theme.typography.material.labelSmall,
+                  { color: colors.accent.primary, fontWeight: "600" },
+                ]}
+              >
+                v{tuneInfo.version}
+            </Text>
         </View>
       </View>
-    );
-  };
 
-  const renderValidationResults = () => {
-    if (!validationResult) return null;
+          <Text
+          style={[
+              isIOS
+                ? theme.typography.ios.bodyLarge
+                : theme.typography.material.bodyLarge,
+              { color: colors.content.secondary },
+            ]}
+          >
+            By {tuneInfo.creator}
+          </Text>
+
+          <View
+            style={{
+              flexDirection: "row",
+              gap: theme.spacing.content.cardOuter,
+            }}
+          >
+            <View style={{ flex: 1 }}>
+              <Text
+                style={[
+                  isIOS
+                    ? theme.typography.ios.labelMedium
+                    : theme.typography.material.labelMedium,
+                  { color: colors.content.tertiary },
+                ]}
+              >
+                Power Gain
+              </Text>
+              <Text
+                style={[
+                  isIOS
+                    ? theme.typography.ios.labelLarge
+                    : theme.typography.material.labelLarge,
+                  { color: colors.semantic.success, fontWeight: "600" },
+                ]}
+              >
+                {tuneInfo.power_gain}
+              </Text>
+          </View>
+
+            <View style={{ flex: 1 }}>
+              <Text
+                style={[
+                  isIOS
+                    ? theme.typography.ios.labelMedium
+                    : theme.typography.material.labelMedium,
+                  { color: colors.content.tertiary },
+                ]}
+              >
+                Torque Gain
+              </Text>
+              <Text
+                style={[
+                  isIOS
+                    ? theme.typography.ios.labelLarge
+                    : theme.typography.material.labelLarge,
+                  { color: colors.semantic.success, fontWeight: "600" },
+                ]}
+              >
+                {tuneInfo.torque_gain}
+              </Text>
+          </View>
+          </View>
+        </View>
+      </IntelligentCard>
+      </View>
+    );
 
     return (
-      <View style={styles.validationContainer}>
-        <Text style={styles.validationTitle}>🔍 Tune Validation Results</Text>
-        
-        <View style={[
-          styles.riskBadge,
-          { backgroundColor: getRiskColor(validationResult.riskLevel) },
-        ]}>
-          <Text style={styles.riskText}>
-            Risk Level: {validationResult.riskLevel}
-          </Text>
-        </View>
-
-        {validationResult.violations.length > 0 && (
-          <View style={styles.issuesContainer}>
-            <Text style={styles.issuesHeader}>⚠️ Safety Violations</Text>
-            {validationResult.violations.map((violation, index) => (
-              <Text key={index} style={styles.violationText}>
-                • {violation}
-              </Text>
-            ))}
-          </View>
-        )}
-
-        {validationResult.warnings.length > 0 && (
-          <View style={styles.issuesContainer}>
-            <Text style={styles.issuesHeader}>⚡ Warnings</Text>
-            {validationResult.warnings.map((warning, index) => (
-              <Text key={index} style={styles.warningText}>
-                • {warning}
-              </Text>
-            ))}
-          </View>
-        )}
-      </View>
-    );
-  };
-
-  const getRiskColor = (riskLevel: string) => {
-    switch (riskLevel) {
-      case 'MINIMAL': return Theme.colors.success;
-      case 'LOW': return Theme.colors.info;
-      case 'MEDIUM': return Theme.colors.warning;
-      case 'HIGH': return Theme.colors.danger;
-      case 'CRITICAL': return '#8B0000';
-      default: return Theme.colors.textSecondary;
-    }
-  };
-
-  const canStartFlash = () => {
-    const hasAllConsents = requiredConsents.every(consent => 
-      grantedConsents.includes(consent)
-    );
-    return hasAllConsents && bikeInSafeMode && userConfirmedSafety && !isFlashing;
-  };
-
-  const isFlashInProgress = isFlashing && currentStage !== 'COMPLETED' && currentStage !== 'FAILED';
-
-  return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+    <SafeAreaView
+      style={{
+        flex: 1,
+        backgroundColor: colors.content.background,
+      }}
+      >
         {/* Header */}
-        <LinearGradient
-          colors={[Theme.colors.primary, Theme.colors.primaryDark]}
-          style={styles.header}
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "space-between",
+          paddingHorizontal: theme.spacing.base,
+          paddingVertical: theme.spacing.base,
+        }}
+      >
+        <IntelligentCard
+          variant="minimal"
+          bloomEnabled={true}
+          onPress={handleCancel}
+          style={{
+            marginBottom: 0,
+            padding: theme.spacing.sm,
+            borderRadius: theme.spacing.base,
+          }}
         >
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-            disabled={isFlashInProgress}
-          >
-            <Icon name="arrow-left" size={24} color={Theme.colors.white} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Safe ECU Flash</Text>
-          {isFlashInProgress && (
-            <TouchableOpacity
-              style={styles.emergencyButton}
-              onPress={handleEmergencyStop}
-            >
-              <Icon name="stop-circle" size={24} color={Theme.colors.danger} />
-            </TouchableOpacity>
-          )}
-        </LinearGradient>
+          <Icon name="arrow-left" size={24} color={colors.content.primary} />
+        </IntelligentCard>
 
+        <Text
+          style={[
+            isIOS
+              ? theme.typography.ios.headlineSmall
+              : theme.typography.material.headlineSmall,
+            { color: colors.content.primary },
+          ]}
+        >
+          Safe Flash
+        </Text>
+
+        <View style={{ width: 40 }} />
+      </View>
+
+      <MomentumScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{
+          paddingBottom: theme.spacing.content.hero,
+        }}
+        rubberbandEnabled={!isFlashing}
+        elasticOverscroll={!isFlashing}
+        hapticFeedback={true}
+        contentRevealStagger={true}
+        intelligentBounce={true}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Progress Indicator */}
         {isFlashing && renderProgressIndicator()}
 
-        {/* Safety Checklist */}
-        {!isFlashing && renderSafetyChecklist()}
+        {/* Tune Information */}
+        {renderTuneInfo()}
 
-        {/* Validation Results */}
-        {renderValidationResults()}
+        {/* Flash Stages */}
+        {renderFlashStages()}
 
-        {/* Error Display */}
-        {error && (
-          <View style={styles.errorContainer}>
-            <Icon name="alert-circle" size={24} color={Theme.colors.danger} />
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
-
-        {/* Critical Warnings */}
-        {isFlashInProgress && currentStage === 'FLASHING' && (
-          <View style={styles.criticalWarning}>
-            <Icon name="alert" size={32} color={Theme.colors.danger} />
-            <Text style={styles.criticalWarningTitle}>⚠️ CRITICAL PHASE</Text>
-            <Text style={styles.criticalWarningText}>
-              DO NOT disconnect your device or turn off your motorcycle.
-              This could cause permanent ECU damage.
-            </Text>
-            <ActivityIndicator size="large" color={Theme.colors.danger} />
-          </View>
-        )}
-      </ScrollView>
-
-      {/* Action Buttons */}
-      <View style={styles.actionContainer}>
-        {!isFlashing ? (
-          <TouchableOpacity
-            style={[
-              styles.flashButton,
-              !canStartFlash() && styles.flashButtonDisabled,
-            ]}
-            onPress={handleStartFlash}
-            disabled={!canStartFlash()}
-          >
-            <LinearGradient
-              colors={canStartFlash() 
-                ? [Theme.colors.primary, Theme.colors.primaryDark]
-                : [Theme.colors.border, Theme.colors.border]
-              }
-              style={styles.flashButtonGradient}
+        {/* Action Button */}
+        {!isFlashing && (
+          <View style={{ paddingHorizontal: theme.spacing.base }}>
+            <IntelligentCard
+              variant="elevated"
+              bloomEnabled={true}
+              onPress={() => setSafetyModalVisible(true)}
+              style={{
+                marginBottom: 0,
+                backgroundColor: colors.accent.primary,
+                alignItems: "center",
+                paddingVertical: theme.spacing.content.paragraph,
+              }}
             >
-              <Icon 
-                name="flash" 
-                size={24} 
-                color={canStartFlash() ? Theme.colors.white : Theme.colors.textSecondary} 
-              />
-              <Text style={[
-                styles.flashButtonText,
-                !canStartFlash() && styles.flashButtonTextDisabled,
-              ]}>
-                Start Flash Process
-              </Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.flashingStatus}>
-            <ActivityIndicator size="small" color={Theme.colors.primary} />
-            <Text style={styles.flashingText}>
-              {currentStage === 'COMPLETED' ? 'Flash Completed Successfully!' : 'Flashing in Progress...'}
-            </Text>
-            {currentStage === 'COMPLETED' && (
-              <TouchableOpacity
-                style={styles.completeButton}
-                onPress={() => navigation.goBack()}
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: theme.spacing.sm,
+                }}
               >
-                <Text style={styles.completeButtonText}>Done</Text>
-              </TouchableOpacity>
-            )}
+                <Icon name="flash" size={24} color="#FFFFFF" />
+                <Text
+                  style={[
+                    isIOS
+                      ? theme.typography.ios.headlineSmall
+                      : theme.typography.material.headlineSmall,
+                    { color: "#FFFFFF", fontWeight: "600" },
+                  ]}
+                >
+                  Start Safe Flash
+            </Text>
+              </View>
+            </IntelligentCard>
           </View>
         )}
-      </View>
+      </MomentumScrollView>
 
-      {/* Consent Modal */}
-      <ConsentModal
-        visible={showConsentModal}
-        consentType={currentConsent}
-        onAccept={handleGrantConsent}
-        onDecline={() => setShowConsentModal(false)}
-      />
-
-      {/* Emergency Stop Modal */}
-      <Modal
-        visible={showEmergencyModal}
-        transparent
-        animationType="fade"
+      {/* Safety Modal */}
+      <GestureModal
+        visible={safetyModalVisible}
+        onClose={() => setSafetyModalVisible(false)}
+        variant="center"
+        title="⚠️ Safety Warning"
+        subtitle="Critical safety information"
+        gestureEnabled={false}
+        intelligentGlass={true}
+        bloomFeedback={false}
+        glassType="textHeavy"
+        textContent={true}
+        closeOnBackdrop={false}
       >
-        <View style={styles.emergencyModalOverlay}>
-          <View style={styles.emergencyModalContent}>
-            <Icon name="alert-octagon" size={48} color={Theme.colors.danger} />
-            <Text style={styles.emergencyModalTitle}>🚨 Emergency Stop Activated</Text>
-            <Text style={styles.emergencyModalText}>
-              Attempting to safely halt the flash process and restore backup...
+        <View style={{ gap: theme.spacing.content.paragraph }}>
+          <IntelligentCard
+            variant="minimal"
+            style={{
+              marginBottom: 0,
+              backgroundColor: colors.semantic.warningBg,
+              borderWidth: 1,
+              borderColor: colors.semantic.warning,
+            }}
+            textContent={true}
+          >
+            <Text
+            style={[
+                isIOS
+                  ? theme.typography.ios.bodyLarge
+                  : theme.typography.material.bodyLarge,
+                { color: colors.content.primary, lineHeight: 28 },
+              ]}
+            >
+              • Flashing ECU modifies engine parameters{"\n"}• May void warranty
+              and affect emissions compliance{"\n"}• Ensure engine is at
+              operating temperature{"\n"}• Do not disconnect during flash
+              process{"\n"}• Have professional installation if unsure
             </Text>
-            <ActivityIndicator size="large" color={Theme.colors.danger} />
+          </IntelligentCard>
+
+          <View style={{ flexDirection: "row", gap: theme.spacing.base }}>
+            <IntelligentCard
+              variant="minimal"
+              bloomEnabled={true}
+              onPress={() => setSafetyModalVisible(false)}
+              style={{
+                flex: 1,
+                marginBottom: 0,
+                alignItems: "center",
+                borderWidth: 1,
+                borderColor: colors.content.border,
+              }}
+            >
+              <Text
+                style={[
+                  isIOS
+                    ? theme.typography.ios.labelLarge
+                    : theme.typography.material.labelLarge,
+                  { color: colors.content.primary, fontWeight: "600" },
+                ]}
+              >
+                Cancel
+              </Text>
+            </IntelligentCard>
+
+            <IntelligentCard
+              variant="elevated"
+              bloomEnabled={true}
+              onPress={handleSafetyAccept}
+              style={{
+                flex: 1,
+                marginBottom: 0,
+                alignItems: "center",
+                backgroundColor: colors.accent.primary,
+              }}
+            >
+              <Text
+                style={[
+                  isIOS
+                    ? theme.typography.ios.labelLarge
+                    : theme.typography.material.labelLarge,
+                  { color: "#FFFFFF", fontWeight: "600" },
+                ]}
+              >
+                I Understand
+              </Text>
+            </IntelligentCard>
+          </View>
+      </View>
+      </GestureModal>
+
+      {/* Confirmation Modal */}
+      <GestureModal
+        visible={confirmModalVisible}
+        onClose={() => setConfirmModalVisible(false)}
+        variant="center"
+        title="🏍️ Confirm Flash"
+        subtitle={`${motorcycleInfo.make} ${motorcycleInfo.model} ${motorcycleInfo.year}`}
+        gestureEnabled={true}
+        intelligentGlass={true}
+        bloomFeedback={true}
+        glassType="medium"
+        textContent={true}
+      >
+        <View style={{ gap: theme.spacing.content.paragraph }}>
+          <IntelligentCard
+            variant="minimal"
+            style={{ marginBottom: 0 }}
+            textContent={true}
+          >
+            <View style={{ gap: theme.spacing.sm }}>
+              <Text
+                style={[
+                  isIOS
+                    ? theme.typography.ios.bodyLarge
+                    : theme.typography.material.bodyLarge,
+                  { color: colors.content.primary },
+                ]}
+              >
+                Ready to flash{" "}
+                <Text style={{ fontWeight: "600" }}>{tuneInfo.name}</Text> to
+                your {motorcycleInfo.make} {motorcycleInfo.model}?
+              </Text>
+
+              <Text
+                style={[
+                  isIOS
+                    ? theme.typography.ios.bodyMedium
+                    : theme.typography.material.bodyMedium,
+                  { color: colors.content.secondary },
+                ]}
+              >
+                Current: {motorcycleInfo.current_tune}
+                {"\n"}
+                Flash Count: {motorcycleInfo.flash_count}
+            </Text>
+            </View>
+          </IntelligentCard>
+
+          <View style={{ flexDirection: "row", gap: theme.spacing.base }}>
+            <IntelligentCard
+              variant="minimal"
+              bloomEnabled={true}
+              onPress={() => setConfirmModalVisible(false)}
+              style={{
+                flex: 1,
+                marginBottom: 0,
+                alignItems: "center",
+                borderWidth: 1,
+                borderColor: colors.content.border,
+              }}
+            >
+              <Text
+                style={[
+                  isIOS
+                    ? theme.typography.ios.labelLarge
+                    : theme.typography.material.labelLarge,
+                  { color: colors.content.primary, fontWeight: "600" },
+                ]}
+              >
+                Cancel
+            </Text>
+            </IntelligentCard>
+
+            <IntelligentCard
+              variant="elevated"
+              bloomEnabled={true}
+              onPress={handleConfirmFlash}
+              style={{
+                flex: 1,
+                marginBottom: 0,
+                alignItems: "center",
+                backgroundColor: colors.accent.primary,
+              }}
+            >
+              <Text
+                style={[
+                  isIOS
+                    ? theme.typography.ios.labelLarge
+                    : theme.typography.material.labelLarge,
+                  { color: "#FFFFFF", fontWeight: "600" },
+                ]}
+              >
+                Flash Now
+              </Text>
+            </IntelligentCard>
           </View>
         </View>
-      </Modal>
+      </GestureModal>
+
+      {/* Completion Modal */}
+      <GestureModal
+        visible={completedModalVisible}
+        onClose={() => {
+          setCompletedModalVisible(false);
+          navigation.goBack();
+        }}
+        variant="center"
+        title="✅ Flash Complete!"
+        subtitle="Tune successfully installed"
+        gestureEnabled={true}
+        intelligentGlass={true}
+        bloomFeedback={true}
+        glassType="medium"
+        textContent={false}
+      >
+        <View
+          style={{ gap: theme.spacing.content.paragraph, alignItems: "center" }}
+        >
+          <Icon name="check-circle" size={64} color={colors.semantic.success} />
+
+          <Text
+            style={[
+              isIOS
+                ? theme.typography.ios.bodyXLarge
+                : theme.typography.material.bodyXLarge,
+              {
+                color: colors.content.primary,
+                textAlign: "center",
+                lineHeight: 32,
+              },
+            ]}
+          >
+            Your {motorcycleInfo.make} {motorcycleInfo.model} has been
+            successfully flashed with{" "}
+            <Text style={{ fontWeight: "600" }}>{tuneInfo.name}</Text>.
+          </Text>
+
+          <IntelligentCard
+            variant="elevated"
+            bloomEnabled={true}
+            onPress={() => {
+              setCompletedModalVisible(false);
+              navigation.goBack();
+            }}
+            style={{
+              marginBottom: 0,
+              alignItems: "center",
+              backgroundColor: colors.accent.primary,
+              paddingHorizontal: theme.spacing.xl,
+            }}
+          >
+            <Text
+              style={[
+                isIOS
+                  ? theme.typography.ios.labelLarge
+                  : theme.typography.material.labelLarge,
+                { color: "#FFFFFF", fontWeight: "600" },
+              ]}
+            >
+              Continue
+            </Text>
+          </IntelligentCard>
+          </View>
+      </GestureModal>
     </SafeAreaView>
   );
 };
-
-// Consent Modal Component
-const ConsentModal: React.FC<{
-  visible: boolean;
-  consentType: ConsentType | null;
-  onAccept: () => void;
-  onDecline: () => void;
-}> = ({ visible, consentType, onAccept, onDecline }) => {
-  const getConsentContent = (type: ConsentType | null) => {
-    if (!type) return { title: '', content: '' };
-    
-    const contentMap = {
-      GENERAL_LIABILITY: {
-        title: 'General Liability Waiver',
-        content: 'By using RevSync to modify your motorcycle\'s ECU, you acknowledge that ECU modifications can significantly alter your motorcycle\'s performance and you assume all risks associated with these modifications.',
-      },
-      ECU_MODIFICATION: {
-        title: 'ECU Modification Consent',
-        content: 'I understand that modifying my motorcycle\'s ECU involves altering factory-programmed engine parameters and may void warranties or affect emissions compliance.',
-      },
-      WARRANTY_VOID: {
-        title: 'Warranty Void Acknowledgment',
-        content: 'I acknowledge that ECU modifications may void my motorcycle\'s manufacturer warranty and affect insurance coverage.',
-      },
-      TRACK_ONLY: {
-        title: 'Track Only Use Agreement',
-        content: 'This tune is designed for TRACK USE ONLY and may not be legal for street use. I confirm this modification will be used for track/competition purposes only.',
-      },
-      EXPERT_TUNE: {
-        title: 'Expert Level Tune Warning',
-        content: 'This is an EXPERT LEVEL tune that makes significant engine parameter changes and requires advanced knowledge to use safely.',
-      },
-      BACKUP_RESPONSIBILITY: {
-        title: 'Backup Responsibility Agreement',
-        content: 'I understand that creating an ECU backup before modification is MANDATORY and I am responsible for maintaining my backup files.',
-      },
-    };
-    
-    return contentMap[type] || { title: '', content: '' };
-  };
-
-  const { title, content } = getConsentContent(consentType);
-
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-    >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>{title}</Text>
-          <ScrollView style={styles.modalScroll}>
-            <Text style={styles.modalText}>{content}</Text>
-          </ScrollView>
-          <View style={styles.modalActions}>
-            <TouchableOpacity style={styles.declineButton} onPress={onDecline}>
-              <Text style={styles.declineButtonText}>Decline</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.acceptButton} onPress={onAccept}>
-              <Text style={styles.acceptButtonText}>I Accept</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-};
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Theme.colors.background,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 20,
-    paddingTop: Platform.OS === 'ios' ? 40 : 20,
-  },
-  backButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    flex: 1,
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: Theme.colors.white,
-    textAlign: 'center',
-    marginRight: 40,
-  },
-  emergencyButton: {
-    padding: 8,
-    backgroundColor: Theme.colors.white,
-    borderRadius: 20,
-  },
-  progressContainer: {
-    margin: 16,
-    padding: 20,
-    backgroundColor: Theme.colors.surface,
-    borderRadius: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  progressTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: Theme.colors.text,
-    marginBottom: 16,
-  },
-  progressBar: {
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: Theme.colors.border,
-  },
-  progressText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Theme.colors.primary,
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  stagesContainer: {
-    marginTop: 20,
-  },
-  stageItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  stageActive: {
-    backgroundColor: Theme.colors.primaryLight + '20',
-  },
-  stageCompleted: {
-    backgroundColor: Theme.colors.success + '20',
-  },
-  stageIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  stageContent: {
-    flex: 1,
-  },
-  stageTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Theme.colors.text,
-  },
-  stageTitleActive: {
-    color: Theme.colors.primary,
-  },
-  stageDescription: {
-    fontSize: 14,
-    color: Theme.colors.textSecondary,
-    marginTop: 2,
-  },
-  safetyContainer: {
-    margin: 16,
-    padding: 20,
-    backgroundColor: Theme.colors.surface,
-    borderRadius: 12,
-    elevation: 2,
-  },
-  safetyTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: Theme.colors.text,
-    marginBottom: 16,
-  },
-  checklistSection: {
-    marginBottom: 20,
-  },
-  checklistHeader: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Theme.colors.text,
-    marginBottom: 12,
-  },
-  checklistItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    backgroundColor: Theme.colors.background,
-    marginBottom: 8,
-  },
-  checklistItemCompleted: {
-    backgroundColor: Theme.colors.success + '20',
-  },
-  checklistText: {
-    flex: 1,
-    fontSize: 14,
-    color: Theme.colors.text,
-    marginLeft: 12,
-  },
-  checklistTextCompleted: {
-    color: Theme.colors.success,
-    textDecorationLine: 'line-through',
-  },
-  validationContainer: {
-    margin: 16,
-    padding: 20,
-    backgroundColor: Theme.colors.surface,
-    borderRadius: 12,
-    elevation: 2,
-  },
-  validationTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: Theme.colors.text,
-    marginBottom: 16,
-  },
-  riskBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    alignSelf: 'flex-start',
-    marginBottom: 16,
-  },
-  riskText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Theme.colors.white,
-  },
-  issuesContainer: {
-    marginBottom: 16,
-  },
-  issuesHeader: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Theme.colors.text,
-    marginBottom: 8,
-  },
-  violationText: {
-    fontSize: 14,
-    color: Theme.colors.danger,
-    lineHeight: 20,
-  },
-  warningText: {
-    fontSize: 14,
-    color: Theme.colors.warning,
-    lineHeight: 20,
-  },
-  errorContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    margin: 16,
-    padding: 16,
-    backgroundColor: Theme.colors.danger + '20',
-    borderRadius: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: Theme.colors.danger,
-  },
-  errorText: {
-    flex: 1,
-    fontSize: 14,
-    color: Theme.colors.danger,
-    marginLeft: 12,
-  },
-  criticalWarning: {
-    margin: 16,
-    padding: 24,
-    backgroundColor: Theme.colors.danger + '10',
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: Theme.colors.danger,
-    alignItems: 'center',
-  },
-  criticalWarningTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: Theme.colors.danger,
-    marginVertical: 8,
-  },
-  criticalWarningText: {
-    fontSize: 14,
-    color: Theme.colors.danger,
-    textAlign: 'center',
-    lineHeight: 20,
-    marginBottom: 16,
-  },
-  actionContainer: {
-    padding: 16,
-    backgroundColor: Theme.colors.surface,
-    borderTopWidth: 1,
-    borderTopColor: Theme.colors.border,
-  },
-  flashButton: {
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  flashButtonDisabled: {
-    opacity: 0.5,
-  },
-  flashButtonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 24,
-  },
-  flashButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: Theme.colors.white,
-    marginLeft: 8,
-  },
-  flashButtonTextDisabled: {
-    color: Theme.colors.textSecondary,
-  },
-  flashingStatus: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-  },
-  flashingText: {
-    fontSize: 16,
-    color: Theme.colors.text,
-    marginLeft: 12,
-  },
-  completeButton: {
-    backgroundColor: Theme.colors.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginLeft: 16,
-  },
-  completeButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Theme.colors.white,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    width: width * 0.9,
-    maxHeight: height * 0.8,
-    backgroundColor: Theme.colors.surface,
-    borderRadius: 16,
-    padding: 24,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: Theme.colors.text,
-    marginBottom: 16,
-  },
-  modalScroll: {
-    maxHeight: height * 0.5,
-  },
-  modalText: {
-    fontSize: 14,
-    color: Theme.colors.text,
-    lineHeight: 20,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 24,
-  },
-  declineButton: {
-    flex: 1,
-    paddingVertical: 12,
-    marginRight: 8,
-    backgroundColor: Theme.colors.border,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  declineButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Theme.colors.textSecondary,
-  },
-  acceptButton: {
-    flex: 1,
-    paddingVertical: 12,
-    marginLeft: 8,
-    backgroundColor: Theme.colors.primary,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  acceptButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Theme.colors.white,
-  },
-  emergencyModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  emergencyModalContent: {
-    backgroundColor: Theme.colors.surface,
-    borderRadius: 16,
-    padding: 32,
-    alignItems: 'center',
-    margin: 20,
-  },
-  emergencyModalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: Theme.colors.danger,
-    marginVertical: 16,
-    textAlign: 'center',
-  },
-  emergencyModalText: {
-    fontSize: 14,
-    color: Theme.colors.text,
-    textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 20,
-  },
-}); 

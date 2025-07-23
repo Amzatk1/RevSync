@@ -1,5 +1,5 @@
-import apiClient from './api';
-import config from '../config/environment';
+import apiClient from "./api";
+import config from "../config/environment";
 
 export interface ConnectionTestResult {
   isConnected: boolean;
@@ -19,13 +19,13 @@ export class ConnectionTest {
    */
   static async testConnection(): Promise<ConnectionTestResult> {
     const startTime = Date.now();
-    
+
     try {
       console.log(`🔗 Testing connection to: ${config.API_BASE_URL}`);
-      
-      const response = await apiClient.get('/bikes/stats/');
+
+      const response = await apiClient.get("/bikes/stats/");
       const responseTime = Date.now() - startTime;
-      
+
       return {
         isConnected: true,
         responseTime,
@@ -33,11 +33,11 @@ export class ConnectionTest {
       };
     } catch (error: any) {
       const responseTime = Date.now() - startTime;
-      
+
       return {
         isConnected: false,
         responseTime,
-        error: error.message || 'Connection failed',
+        error: error.message || "Connection failed",
       };
     }
   }
@@ -48,7 +48,7 @@ export class ConnectionTest {
   static async testAuth(): Promise<boolean> {
     try {
       // This endpoint would need to be implemented in the backend
-      await apiClient.get('/auth/test/');
+      await apiClient.get("/auth/test/");
       return true;
     } catch (error) {
       return false;
@@ -60,12 +60,12 @@ export class ConnectionTest {
    */
   static async testEndpoints(): Promise<Record<string, boolean>> {
     const endpoints = [
-      '/bikes/manufacturers/',
-      '/bikes/categories/',
-      '/bikes/engine-types/',
-      '/bikes/motorcycles/',
-      '/tunes/categories/',
-      '/tunes/types/',
+      "/bikes/manufacturers/",
+      "/bikes/categories/",
+      "/bikes/engine-types/",
+      "/bikes/motorcycles/",
+      "/tunes/categories/",
+      "/tunes/types/",
     ];
 
     const results: Record<string, boolean> = {};
@@ -83,4 +83,4 @@ export class ConnectionTest {
   }
 }
 
-export default ConnectionTest; 
+export default ConnectionTest;

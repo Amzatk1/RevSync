@@ -8,6 +8,9 @@ import uuid
 User = get_user_model()
 
 
+
+
+
 class TuneCategory(models.Model):
     """Categories for tune classification"""
     CATEGORY_CHOICES = [
@@ -100,7 +103,7 @@ class SafetyRating(models.Model):
 
 class TuneCreator(models.Model):
     """Extended profile for tune creators"""
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='creator_profile')
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='tune_creator_profile')
     business_name = models.CharField(max_length=200, blank=True)
     bio = models.TextField(blank=True)
     specialties = models.JSONField(default=list)  # ['Sport bikes', 'Harley Davidson', etc.]
@@ -192,12 +195,32 @@ class Tune(models.Model):
     rev_limit_change = models.IntegerField(null=True, blank=True)
     speed_limiter_removed = models.BooleanField(default=False)
     
-    # Files & Media
+    # Files & Media (Enhanced with Comprehensive Tune File Support)
     tune_file = models.FileField(
         upload_to='tunes/files/',
-        validators=[FileExtensionValidator(allowed_extensions=['bin', 'hex', 'ecu', 'map'])],
+        validators=[FileExtensionValidator(allowed_extensions=[
+            'bin', 'hex', 'map', 'cal', 'kts', 'damos', 'a2l', 'ols', 'xdf', 'bdm'
+        ])],
         null=True, blank=True
     )
+    tune_file_type = models.CharField(
+        max_length=10,
+        choices=[
+            ('bin', 'Binary ECU Map (.bin)'),
+            ('hex', 'Hexadecimal Format (.hex)'),
+            ('map', 'Map File (.map)'),
+            ('cal', 'Calibration File (.cal)'),
+            ('kts', 'KTM Specific (.kts)'),
+            ('damos', 'DAMOS Definition (.damos)'),
+            ('a2l', 'ASAP2 File (.a2l)'),
+            ('ols', 'OLS Project (.ols)'),
+            ('xdf', 'XDF Definition (.xdf)'),
+        ],
+        blank=True,
+        help_text="Auto-detected based on file extension"
+    )
+    tune_file_size_bytes = models.PositiveIntegerField(null=True, blank=True)
+    tune_file_checksum = models.CharField(max_length=64, blank=True)  # SHA-256 hash
     backup_file = models.FileField(upload_to='tunes/backups/', null=True, blank=True)
     dyno_chart = models.ImageField(upload_to='tunes/dyno_charts/', null=True, blank=True)
     installation_video = models.URLField(blank=True)
@@ -221,19 +244,43 @@ class Tune(models.Model):
     requires_license_agreement = models.BooleanField(default=True)
     max_downloads_per_purchase = models.PositiveIntegerField(default=3)
     
-    # Status & Moderation
-    STATUS_CHOICES = [
-        ('draft', 'Draft'),
-        ('pending_review', 'Pending Review'),
-        ('approved', 'Approved'),
-        ('rejected', 'Rejected'),
-        ('suspended', 'Suspended'),
-        ('archived', 'Archived'),
-    ]
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='draft', db_index=True)
+    # Status & Moderation (Enhanced with AI Review)
+    status = models.CharField(
+        max_length=20, 
+        choices=[
+            ('DRAFT', 'Draft'),
+            ('PENDING_REVIEW', 'Pending Review'),
+            ('APPROVED', 'Approved'),
+            ('REJECTED', 'Rejected'),
+            ('PUBLISHED', 'Published'),
+            ('SUSPENDED', 'Suspended'),
+        ], 
+        default='DRAFT', 
+        db_index=True
+    )
     approval_date = models.DateTimeField(null=True, blank=True)
     rejection_reason = models.TextField(blank=True)
     moderator_notes = models.TextField(blank=True)
+    
+    # Creator Verification Requirements
+    requires_creator_verification = models.BooleanField(default=True)
+    minimum_creator_level = models.CharField(
+        max_length=20, 
+        choices=[
+            ('UNVERIFIED', 'Unverified'),
+            ('BASIC', 'Basic Verified'),
+            ('PROFESSIONAL', 'Professional Shop'),
+            ('EXPERT', 'Expert Tuner'),
+            ('PARTNER', 'Official Partner'),
+        ], 
+        default='BASIC'
+    )
+    
+    # AI Review Integration
+    ai_review_required = models.BooleanField(default=True)
+    ai_review_completed = models.BooleanField(default=False)
+    manual_review_required = models.BooleanField(default=False)
+    auto_approved = models.BooleanField(default=False)  # AI auto-approved for trusted creators
     
     # Features & Tags
     is_featured = models.BooleanField(default=False, db_index=True)
@@ -606,3 +653,319 @@ class TuneCollectionItem(models.Model):
 
     def __str__(self):
         return f"{self.collection.name} → {self.tune.name}"
+
+# Creator Verification Levels
+class CreatorVerificationLevel(models.TextChoices):
+    UNVERIFIED = 'UNVERIFIED', 'Unverified'
+    BASIC = 'BASIC', 'Basic Verified'
+    PROFESSIONAL = 'PROFESSIONAL', 'Professional Shop'
+    EXPERT = 'EXPERT', 'Expert Tuner'
+    PARTNER = 'PARTNER', 'Official Partner'
+
+class Creator(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='creator_profile')
+    business_name = models.CharField(max_length=200, blank=True)
+    verification_level = models.CharField(
+        max_length=20, 
+        choices=[
+            ('UNVERIFIED', 'Unverified'),
+            ('BASIC', 'Basic Verified'),
+            ('PROFESSIONAL', 'Professional Shop'),
+            ('EXPERT', 'Expert Tuner'),
+            ('PARTNER', 'Official Partner'),
+        ], 
+        default='UNVERIFIED'
+    )
+    years_experience = models.PositiveIntegerField(default=0)
+    specialization = models.JSONField(default=list)  # List of motorcycle categories
+    certifications = models.JSONField(default=list)  # Professional certifications
+    business_license = models.CharField(max_length=100, blank=True)
+    website = models.URLField(blank=True)
+    verified_at = models.DateTimeField(null=True, blank=True)
+    can_upload_tunes = models.BooleanField(default=False)
+    auto_approve_tunes = models.BooleanField(default=False)  # For highly trusted creators
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.get_verification_level_display()}"
+
+# Supported Tune File Types
+class TuneFileType(models.TextChoices):
+    BIN = 'bin', 'Binary ECU Map (.bin)'
+    HEX = 'hex', 'Hexadecimal Format (.hex)'
+    MAP = 'map', 'Map File (.map)'
+    CAL = 'cal', 'Calibration File (.cal)'
+    KTS = 'kts', 'KTM Specific (.kts)'
+    DAMOS = 'damos', 'DAMOS Definition (.damos)'
+    A2L = 'a2l', 'ASAP2 File (.a2l)'
+    OLS = 'ols', 'OLS Project (.ols)'
+    XDF = 'xdf', 'XDF Definition (.xdf)'
+    BDM = 'bdm', 'BDM Read (.bdm)'
+
+# AI Review Status
+class AIReviewStatus(models.TextChoices):
+    PENDING = 'PENDING', 'Pending AI Review'
+    APPROVED = 'APPROVED', 'AI Approved'
+    REJECTED = 'REJECTED', 'AI Rejected'
+    MANUAL_REVIEW = 'MANUAL_REVIEW', 'Requires Manual Review'
+    PROCESSING = 'PROCESSING', 'AI Processing'
+
+class TuneAIReview(models.Model):
+    tune = models.OneToOneField('Tune', on_delete=models.CASCADE, related_name='ai_review')
+    status = models.CharField(max_length=20, choices=AIReviewStatus.choices, default=AIReviewStatus.PENDING)
+    ai_confidence_score = models.FloatField(null=True, blank=True)  # 0.0 to 1.0
+    safety_score = models.FloatField(null=True, blank=True)  # 0.0 to 100.0
+    compatibility_score = models.FloatField(null=True, blank=True)
+    risk_factors = models.JSONField(default=list)  # List of identified risks
+    safety_recommendations = models.JSONField(default=list)  # AI safety recommendations
+    file_analysis = models.JSONField(default=dict)  # Technical file analysis
+    ai_explanation = models.TextField(blank=True)  # AI reasoning for decision
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    review_duration_seconds = models.FloatField(null=True, blank=True)
+    ai_model_version = models.CharField(max_length=50, default='mistral-7b')
+    requires_manual_review = models.BooleanField(default=False)
+    manual_review_reason = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"AI Review: {self.tune.name} - {self.get_status_display()}"
+
+# Enhanced Tune Model
+class TuneStatus(models.TextChoices):
+    DRAFT = 'DRAFT', 'Draft'
+    PENDING_REVIEW = 'PENDING_REVIEW', 'Pending Review'
+    APPROVED = 'APPROVED', 'Approved'
+    REJECTED = 'REJECTED', 'Rejected'
+    PUBLISHED = 'PUBLISHED', 'Published'
+    SUSPENDED = 'SUSPENDED', 'Suspended'
+
+class TuneSubmission(models.Model):
+    """Enhanced tune submission with comprehensive T-CLOCS safety validation"""
+    
+    # Basic Information
+    creator = models.ForeignKey(User, on_delete=models.CASCADE, related_name='tune_submissions')
+    name = models.CharField(max_length=200)
+    description = models.TextField()
+    file = models.FileField(upload_to='tunes/files/')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    # Layer 1: Pre-Submission Validation (Creator Side)
+    motorcycle_make = models.CharField(max_length=50)
+    motorcycle_model = models.CharField(max_length=100)
+    motorcycle_year = models.IntegerField()
+    engine_type = models.CharField(max_length=100)  # e.g., "600cc Inline-4", "1000cc V-Twin"
+    ecu_type = models.CharField(max_length=100)     # e.g., "Yamaha ECU", "Bosch ME7"
+    
+    TUNE_TYPE_CHOICES = [
+        ('ECU_FLASH', 'ECU Flash'),
+        ('PIGGYBACK', 'Piggyback Module'),
+        ('MAP', 'Fuel/Ignition Map'),
+        ('FULL_SYSTEM', 'Full System Tune'),
+    ]
+    tune_type = models.CharField(max_length=20, choices=TUNE_TYPE_CHOICES)
+    
+    # Required Modifications Disclosure
+    required_exhaust = models.CharField(max_length=200, blank=True, help_text="Required exhaust system")
+    required_air_filter = models.CharField(max_length=200, blank=True, help_text="Required air filter")
+    required_fuel_system = models.CharField(max_length=200, blank=True, help_text="Required fuel system mods")
+    other_required_mods = models.TextField(blank=True, help_text="Other required modifications")
+    
+    # Layer 2: AI Safety Scoring & Analysis
+    ai_safety_score = models.IntegerField(null=True, blank=True, help_text="0-100 safety score")
+    ai_confidence = models.FloatField(null=True, blank=True, help_text="AI confidence 0-1")
+    
+    SKILL_LEVEL_CHOICES = [
+        ('BEGINNER', 'Beginner - Conservative, street-friendly'),
+        ('INTERMEDIATE', 'Intermediate - Moderate performance gains'),
+        ('EXPERT', 'Expert - Advanced, track-oriented'),
+    ]
+    skill_level_required = models.CharField(max_length=20, choices=SKILL_LEVEL_CHOICES, null=True, blank=True)
+    
+    # AI Risk Analysis
+    lean_afr_risk = models.BooleanField(default=False)
+    timing_risk = models.BooleanField(default=False)
+    emissions_impact = models.BooleanField(default=False)
+    ecu_brick_risk = models.BooleanField(default=False)
+    
+    # Performance Predictions
+    estimated_hp_gain = models.FloatField(null=True, blank=True)
+    estimated_torque_gain = models.FloatField(null=True, blank=True)
+    throttle_response_improvement = models.CharField(max_length=50, blank=True)
+    fuel_efficiency_impact = models.CharField(max_length=50, blank=True)
+    
+    # Layer 3: Real-World Validation
+    dyno_chart_before = models.FileField(upload_to='tunes/dyno_charts/', null=True, blank=True)
+    dyno_chart_after = models.FileField(upload_to='tunes/dyno_charts/', null=True, blank=True)
+    afr_monitoring_data = models.FileField(upload_to='tunes/afr_data/', null=True, blank=True)
+    road_test_log = models.TextField(blank=True, help_text="Road test conditions and results")
+    test_anomalies = models.TextField(blank=True, help_text="Any noted irregularities")
+    
+    # Dyno Results
+    baseline_hp = models.FloatField(null=True, blank=True)
+    tuned_hp = models.FloatField(null=True, blank=True)
+    baseline_torque = models.FloatField(null=True, blank=True)
+    tuned_torque = models.FloatField(null=True, blank=True)
+    peak_afr = models.FloatField(null=True, blank=True)
+    
+    # Layer 4: Human Review & Approval
+    REVIEW_STATUS_CHOICES = [
+        ('PENDING', 'Pending Review'),
+        ('AI_REVIEW', 'AI Analysis in Progress'),
+        ('HUMAN_REVIEW', 'Human Review Required'),
+        ('APPROVED', 'Approved'),
+        ('REJECTED', 'Rejected'),
+        ('REVISION_REQUESTED', 'Revision Requested'),
+    ]
+    review_status = models.CharField(max_length=20, choices=REVIEW_STATUS_CHOICES, default='PENDING')
+    
+    reviewer = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='reviewed_tunes')
+    review_notes = models.TextField(blank=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    
+    # Layer 5: Safety Presentation Data
+    SAFETY_BADGE_CHOICES = [
+        ('SAFE', 'Safe - Conservative tune'),
+        ('MODERATE', 'Moderate - Some risk considerations'),
+        ('EXPERT', 'Expert - Advanced tune requiring experience'),
+    ]
+    safety_badge = models.CharField(max_length=20, choices=SAFETY_BADGE_CHOICES, null=True, blank=True)
+    
+    risk_flags = models.JSONField(default=list, help_text="List of risk flags for display")
+    performance_highlights = models.JSONField(default=list, help_text="Key performance benefits")
+    warranty_implications = models.TextField(blank=True)
+    emissions_disclaimer = models.TextField(blank=True)
+    
+    # Layer 6: Pre-Flash Safety Data
+    installation_complexity = models.CharField(max_length=50, choices=[
+        ('SIMPLE', 'Simple - Plug and play'),
+        ('MODERATE', 'Moderate - Some technical knowledge required'),
+        ('COMPLEX', 'Complex - Professional installation recommended'),
+    ], default='MODERATE')
+    
+    backup_required = models.BooleanField(default=True)
+    special_tools_required = models.TextField(blank=True)
+    
+    # Layer 7: Post-Installation Monitoring
+    feedback_count = models.IntegerField(default=0)
+    average_user_rating = models.FloatField(null=True, blank=True)
+    reported_issues_count = models.IntegerField(default=0)
+    
+    # Layer 8: Quality Assurance
+    last_audit_date = models.DateTimeField(null=True, blank=True)
+    audit_score = models.IntegerField(null=True, blank=True)
+    revocation_reason = models.TextField(blank=True)
+    is_revoked = models.BooleanField(default=False)
+    
+    class Meta:
+        db_table = 'tunes_submission'
+        indexes = [
+            models.Index(fields=['review_status']),
+            models.Index(fields=['safety_badge']),
+            models.Index(fields=['ai_safety_score']),
+            models.Index(fields=['motorcycle_make', 'motorcycle_model']),
+        ]
+    
+    def __str__(self):
+        return f"{self.name} - {self.motorcycle_make} {self.motorcycle_model} ({self.review_status})"
+    
+    @property
+    def compatibility_string(self):
+        return f"{self.motorcycle_make} {self.motorcycle_model} {self.motorcycle_year}"
+    
+    @property
+    def hp_gain(self):
+        if self.baseline_hp and self.tuned_hp:
+            return self.tuned_hp - self.baseline_hp
+        return self.estimated_hp_gain
+    
+    @property
+    def torque_gain(self):
+        if self.baseline_torque and self.tuned_torque:
+            return self.tuned_torque - self.baseline_torque
+        return self.estimated_torque_gain
+
+
+class UserFeedback(models.Model):
+    """Layer 7: Post-Installation Monitoring - User feedback system"""
+    
+    tune = models.ForeignKey(TuneSubmission, on_delete=models.CASCADE, related_name='user_feedback')
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    
+    # Installation Experience
+    installation_difficulty = models.IntegerField(choices=[(i, i) for i in range(1, 6)], help_text="1-5 scale")
+    installation_time_minutes = models.IntegerField(null=True, blank=True)
+    tools_used = models.CharField(max_length=200, blank=True)
+    
+    # Performance Feedback
+    performance_rating = models.IntegerField(choices=[(i, i) for i in range(1, 6)], help_text="1-5 scale")
+    throttle_response = models.CharField(max_length=20, choices=[
+        ('MUCH_BETTER', 'Much Better'),
+        ('BETTER', 'Better'), 
+        ('SAME', 'Same'),
+        ('WORSE', 'Worse'),
+    ])
+    
+    power_delivery = models.CharField(max_length=20, choices=[
+        ('SMOOTH', 'Smooth and Linear'),
+        ('PEAKY', 'Peaky but Manageable'),
+        ('HARSH', 'Harsh or Jerky'),
+    ])
+    
+    fuel_economy_change = models.CharField(max_length=20, choices=[
+        ('IMPROVED', 'Improved'),
+        ('SAME', 'About the Same'),
+        ('WORSE', 'Worse'),
+    ])
+    
+    # Safety Feedback
+    any_issues = models.BooleanField(default=False)
+    issue_description = models.TextField(blank=True)
+    would_recommend = models.BooleanField(default=True)
+    
+    # Usage Context
+    primary_use = models.CharField(max_length=20, choices=[
+        ('STREET', 'Street Riding'),
+        ('TRACK', 'Track Days'),
+        ('BOTH', 'Street and Track'),
+    ])
+    
+    miles_since_install = models.IntegerField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        unique_together = ['tune', 'user']
+
+
+class SafetyAudit(models.Model):
+    """Layer 8: Ongoing Quality Assurance - Safety audit tracking"""
+    
+    tune = models.ForeignKey(TuneSubmission, on_delete=models.CASCADE, related_name='safety_audits')
+    auditor = models.ForeignKey(User, on_delete=models.CASCADE)
+    
+    AUDIT_TYPE_CHOICES = [
+        ('ROUTINE', 'Routine Periodic Audit'),
+        ('COMPLAINT', 'Complaint-Triggered Audit'),
+        ('SAFETY_CONCERN', 'Safety Concern Review'),
+        ('PERFORMANCE_REVIEW', 'Performance Review'),
+    ]
+    audit_type = models.CharField(max_length=20, choices=AUDIT_TYPE_CHOICES)
+    
+    # Audit Results
+    safety_score_change = models.IntegerField(null=True, blank=True)
+    new_risk_flags = models.JSONField(default=list)
+    recommendations = models.TextField()
+    
+    ACTION_CHOICES = [
+        ('APPROVED', 'Approved - No Action'),
+        ('MINOR_UPDATE', 'Minor Update Required'),
+        ('MAJOR_REVISION', 'Major Revision Required'),
+        ('SUSPENDED', 'Temporarily Suspended'),
+        ('REVOKED', 'Permanently Revoked'),
+    ]
+    action_taken = models.CharField(max_length=20, choices=ACTION_CHOICES)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    
+    def __str__(self):
+        return f"Audit: {self.tune.name} - {self.action_taken}"

@@ -1,13 +1,13 @@
 # RevSync Mobile App
 
-React Native mobile application for the RevSync motorcycle tuning platform.
+React Native mobile application for the RevSync motorcycle tuning marketplace.
 
 ## 📱 Features
 
 - **Motorcycle Database**: Browse and search 17+ motorcycles from 12+ manufacturers
 - **Tune Marketplace**: Access verified ECU tunes with safety ratings
-- **Real-time Analytics**: Performance monitoring and telemetry (coming soon)
-- **Community Features**: Reviews, ratings, and social interactions
+- **Community Features**: Reviews, ratings, and social interactions  
+- **User Garage**: Manage your motorcycle collection
 - **Professional Tools**: Advanced tuning capabilities for professionals
 
 ## 🏗️ Project Structure
@@ -216,7 +216,7 @@ The mobile app integrates with these main backend endpoints:
 
 ## 🚀 Next-Generation Features (Roadmap)
 
-1. **Live Telemetry Dashboard** - Real-time performance monitoring
+1. **Advanced Tune Search** - Enhanced filtering and recommendations
 2. **Parts Marketplace** - Integrated parts and services
 3. **Gamification** - Achievements and leaderboards
 4. **Social Features** - Community sharing and messaging

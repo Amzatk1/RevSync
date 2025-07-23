@@ -1,4 +1,4 @@
-import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
 
 export interface User {
   id: string;
@@ -7,7 +7,7 @@ export interface User {
   avatar_url?: string;
   is_creator: boolean;
   creator_verified: boolean;
-  subscription_type: 'free' | 'premium' | 'creator';
+  subscription_type: "free" | "premium" | "creator";
 }
 
 interface AuthState {
@@ -28,49 +28,49 @@ const initialState: AuthState = {
 
 // Async thunks for auth actions
 export const loginUser = createAsyncThunk(
-  'auth/login',
+  "auth/login",
   async (credentials: { email: string; password: string }) => {
     // API call would go here
     // For now, return mock data
     return {
       user: {
-        id: '1',
-        username: 'RiderTech',
+        id: "1",
+        username: "RiderTech",
         email: credentials.email,
         is_creator: false,
         creator_verified: false,
-        subscription_type: 'premium' as const,
+        subscription_type: "premium" as const,
       },
-      token: 'mock-jwt-token',
+      token: "mock-jwt-token",
     };
   }
 );
 
 export const registerUser = createAsyncThunk(
-  'auth/register',
+  "auth/register",
   async (userData: { username: string; email: string; password: string }) => {
     // API call would go here
     return {
       user: {
-        id: '1',
+        id: "1",
         username: userData.username,
         email: userData.email,
         is_creator: false,
         creator_verified: false,
-        subscription_type: 'free' as const,
+        subscription_type: "free" as const,
       },
-      token: 'mock-jwt-token',
+      token: "mock-jwt-token",
     };
   }
 );
 
-export const logoutUser = createAsyncThunk('auth/logout', async () => {
+export const logoutUser = createAsyncThunk("auth/logout", async () => {
   // Clear any stored tokens, etc.
   return null;
 });
 
 export const authSlice = createSlice({
-  name: 'auth',
+  name: "auth",
   initialState,
   reducers: {
     clearError: (state) => {
@@ -97,7 +97,7 @@ export const authSlice = createSlice({
     });
     builder.addCase(loginUser.rejected, (state, action) => {
       state.isLoading = false;
-      state.error = action.error.message || 'Login failed';
+      state.error = action.error.message || "Login failed";
     });
 
     // Register
@@ -114,7 +114,7 @@ export const authSlice = createSlice({
     });
     builder.addCase(registerUser.rejected, (state, action) => {
       state.isLoading = false;
-      state.error = action.error.message || 'Registration failed';
+      state.error = action.error.message || "Registration failed";
     });
 
     // Logout
@@ -129,4 +129,4 @@ export const authSlice = createSlice({
 });
 
 export const { clearError, updateUser } = authSlice.actions;
-export default authSlice.reducer; 
+export default authSlice.reducer;

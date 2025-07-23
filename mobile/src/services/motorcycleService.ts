@@ -1,4 +1,4 @@
-import apiClient from './api';
+import apiClient from "./api";
 
 export interface Manufacturer {
   id: number;
@@ -81,19 +81,19 @@ export interface MotorcycleFilters {
 class MotorcycleService {
   // Get all manufacturers
   async getManufacturers(): Promise<Manufacturer[]> {
-    const response = await apiClient.get('/bikes/manufacturers/');
+    const response = await apiClient.get("/bikes/manufacturers/");
     return response.data;
   }
 
   // Get all categories
   async getCategories(): Promise<BikeCategory[]> {
-    const response = await apiClient.get('/bikes/categories/');
+    const response = await apiClient.get("/bikes/categories/");
     return response.data;
   }
 
   // Get all engine types
   async getEngineTypes(): Promise<EngineType[]> {
-    const response = await apiClient.get('/bikes/engine-types/');
+    const response = await apiClient.get("/bikes/engine-types/");
     return response.data;
   }
 
@@ -105,16 +105,18 @@ class MotorcycleService {
     previous?: string;
   }> {
     const params = new URLSearchParams();
-    
+
     if (filters) {
       Object.entries(filters).forEach(([key, value]) => {
-        if (value !== undefined && value !== '') {
+        if (value !== undefined && value !== "") {
           params.append(key, value.toString());
         }
       });
     }
 
-    const response = await apiClient.get(`/bikes/motorcycles/?${params.toString()}`);
+    const response = await apiClient.get(
+      `/bikes/motorcycles/?${params.toString()}`
+    );
     return response.data;
   }
 
@@ -125,34 +127,40 @@ class MotorcycleService {
   }
 
   // Get motorcycles by manufacturer
-  async getMotorcyclesByManufacturer(manufacturerId: number): Promise<MotorcycleListItem[]> {
-    const response = await apiClient.get(`/bikes/manufacturers/${manufacturerId}/motorcycles/`);
+  async getMotorcyclesByManufacturer(
+    manufacturerId: number
+  ): Promise<MotorcycleListItem[]> {
+    const response = await apiClient.get(
+      `/bikes/manufacturers/${manufacturerId}/motorcycles/`
+    );
     return response.data;
   }
 
   // Get popular motorcycles
   async getPopularMotorcycles(): Promise<MotorcycleListItem[]> {
-    const response = await apiClient.get('/bikes/motorcycles/popular/');
+    const response = await apiClient.get("/bikes/motorcycles/popular/");
     return response.data;
   }
 
   // Get new motorcycles
   async getNewMotorcycles(): Promise<MotorcycleListItem[]> {
-    const response = await apiClient.get('/bikes/motorcycles/new/');
+    const response = await apiClient.get("/bikes/motorcycles/new/");
     return response.data;
   }
 
   // Get motorcycle statistics
   async getMotorcycleStats(): Promise<MotorcycleStats> {
-    const response = await apiClient.get('/bikes/stats/');
+    const response = await apiClient.get("/bikes/stats/");
     return response.data;
   }
 
   // Get search suggestions
   async getSearchSuggestions(query: string): Promise<string[]> {
-    const response = await apiClient.get(`/bikes/search/suggestions/?q=${encodeURIComponent(query)}`);
+    const response = await apiClient.get(
+      `/bikes/search/suggestions/?q=${encodeURIComponent(query)}`
+    );
     return response.data;
   }
 }
 
-export default new MotorcycleService(); 
+export default new MotorcycleService();

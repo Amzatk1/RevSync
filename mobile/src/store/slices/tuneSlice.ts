@@ -1,5 +1,9 @@
-import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import tuneService, { TuneListItem, TuneDetail, TuneFilters } from '../../services/tuneService';
+import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
+import tuneService, {
+  TuneListItem,
+  TuneDetail,
+  TuneFilters,
+} from "../../services/tuneService";
 
 export interface Tune {
   id: string;
@@ -12,7 +16,7 @@ export interface Tune {
   price: number;
   is_free: boolean;
   compatibility: string[];
-  safety_rating: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
+  safety_rating: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
   download_count: number;
   rating_average: number;
   review_count: number;
@@ -48,7 +52,7 @@ const initialState: TuneState = {
 
 // Async thunks
 export const loadMarketplaceTunes = createAsyncThunk(
-  'tune/loadMarketplaceTunes',
+  "tune/loadMarketplaceTunes",
   async (filters?: TuneFilters) => {
     const response = await tuneService.getTunes(filters);
     return response;
@@ -56,35 +60,35 @@ export const loadMarketplaceTunes = createAsyncThunk(
 );
 
 export const loadFeaturedTunes = createAsyncThunk(
-  'tune/loadFeaturedTunes',
+  "tune/loadFeaturedTunes",
   async () => {
     return await tuneService.getFeaturedTunes();
   }
 );
 
 export const loadPopularTunes = createAsyncThunk(
-  'tune/loadPopularTunes',
+  "tune/loadPopularTunes",
   async () => {
     return await tuneService.getPopularTunes();
   }
 );
 
 export const loadFreeTunes = createAsyncThunk(
-  'tune/loadFreeTunes',
+  "tune/loadFreeTunes",
   async () => {
     return await tuneService.getFreeTunes();
   }
 );
 
 export const loadTuneDetail = createAsyncThunk(
-  'tune/loadTuneDetail',
+  "tune/loadTuneDetail",
   async (tuneId: string) => {
     return await tuneService.getTuneDetail(tuneId);
   }
 );
 
 export const loadPurchasedTunes = createAsyncThunk(
-  'tune/loadPurchasedTunes',
+  "tune/loadPurchasedTunes",
   async () => {
     // TODO: Implement user's purchased tunes endpoint
     return [];
@@ -92,7 +96,7 @@ export const loadPurchasedTunes = createAsyncThunk(
 );
 
 export const purchaseTune = createAsyncThunk(
-  'tune/purchaseTune',
+  "tune/purchaseTune",
   async (tuneId: string) => {
     // TODO: Implement purchase endpoint
     return tuneId;
@@ -100,7 +104,7 @@ export const purchaseTune = createAsyncThunk(
 );
 
 export const tuneSlice = createSlice({
-  name: 'tune',
+  name: "tune",
   initialState,
   reducers: {
     selectTune: (state, action: PayloadAction<TuneDetail>) => {
@@ -133,7 +137,7 @@ export const tuneSlice = createSlice({
     });
     builder.addCase(loadMarketplaceTunes.rejected, (state, action) => {
       state.isLoading = false;
-      state.error = action.error.message || 'Failed to load marketplace tunes';
+      state.error = action.error.message || "Failed to load marketplace tunes";
     });
 
     // Load featured tunes
@@ -163,7 +167,7 @@ export const tuneSlice = createSlice({
     });
     builder.addCase(loadTuneDetail.rejected, (state, action) => {
       state.isLoading = false;
-      state.error = action.error.message || 'Failed to load tune details';
+      state.error = action.error.message || "Failed to load tune details";
     });
 
     // Load purchased tunes
@@ -178,5 +182,6 @@ export const tuneSlice = createSlice({
   },
 });
 
-export const { selectTune, clearSelectedTune, clearError, clearTunes } = tuneSlice.actions;
-export default tuneSlice.reducer; 
+export const { selectTune, clearSelectedTune, clearError, clearTunes } =
+  tuneSlice.actions;
+export default tuneSlice.reducer;

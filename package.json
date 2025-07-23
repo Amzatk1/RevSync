@@ -45,5 +45,10 @@
   "engines": {
     "node": ">=18.0.0",
     "npm": ">=8.0.0"
+  },
+  "dependencies": {
+    "@expo/vector-icons": "^14.1.0",
+    "react-native-linear-gradient": "^2.8.3",
+    "react-native-vector-icons": "^10.2.0"
   }
-} 
+}

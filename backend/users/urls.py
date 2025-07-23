@@ -19,12 +19,6 @@ urlpatterns = [
     path('garage/', views.UserGarageListView.as_view(), name='user-garage-list'),
     path('garage/<int:pk>/', views.UserGarageDetailView.as_view(), name='user-garage-detail'),
     
-    # Ride Sessions
-    path('rides/', views.RideSessionListView.as_view(), name='ride-sessions'),
-    path('rides/<int:pk>/', views.RideSessionDetailView.as_view(), name='ride-session-detail'),
-    path('rides/start/', views.start_ride_session, name='start-ride-session'),
-    path('rides/<int:session_id>/end/', views.end_ride_session, name='end-ride-session'),
-    
     # Achievements & Stats
     path('achievements/', views.UserAchievementsView.as_view(), name='user-achievements'),
     path('stats/', views.UserStatsView.as_view(), name='user-stats'),

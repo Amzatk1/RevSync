@@ -1,21 +1,101 @@
 {
   "expo": {
     "name": "RevSync",
-    "slug": "revsync",
+    "slug": "revsync-motorcycle-tuning",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "icon": "./assets/icon.png",
     "splash": {
+      "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#FF6B35"
     },
     "assetBundlePatterns": [
       "**/*"
     ],
+    "scheme": "revsync",
+    "platforms": ["ios", "android"],
+    "primaryColor": "#FF6B35",
+    "description": "RevSync is a motorcycle ECU tuning marketplace featuring open-source performance maps, safety validation, and community-driven content for motorcycle enthusiasts.",
+    "githubUrl": "https://github.com/yourusername/revsync",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.revsync.motorcycletuning",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSBluetoothAlwaysUsageDescription": "RevSync uses Bluetooth to connect to motorcycle ECU tuning devices for safe ECU modifications.",
+        "NSLocationWhenInUseUsageDescription": "RevSync uses location to find local motorcycle events and meetups in your area.",
+        "NSCameraUsageDescription": "RevSync uses the camera to scan VIN codes and ECU part numbers for compatibility verification.",
+        "NSPhotoLibraryUsageDescription": "RevSync accesses photos to share tuning results and motorcycle modifications with the community.",
+        "ITSAppUsesNonExemptEncryption": false,
+        "LSApplicationQueriesSchemes": ["mailto", "tel"]
+      },
+      "associatedDomains": ["applinks:revsync.app"],
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
-    "android": {},
-    "web": {}
+    "android": {
+      "package": "com.revsync.motorcycletuning",
+      "versionCode": 1,
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.CAMERA",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FF6B35"
+      },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            {
+              "scheme": "https",
+              "host": "revsync.app"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "name": "RevSync Motorcycle Tuning",
+      "shortName": "RevSync",
+      "lang": "en",
+      "scope": "/",
+      "themeColor": "#FF6B35",
+      "backgroundColor": "#ffffff",
+      "display": "standalone",
+      "orientation": "portrait"
+    },
+    "notification": {
+      "icon": "./assets/notification-icon.png",
+      "color": "#FF6B35",
+      "androidMode": "default",
+      "androidCollapsedTitle": "RevSync Updates"
+    },
+    "updates": {
+      "enabled": true,
+      "fallbackToCacheTimeout": 30000,
+      "url": "https://u.expo.dev/your-project-id"
+    },
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "your-project-id-here"
+      }
+    }
   }
 } 

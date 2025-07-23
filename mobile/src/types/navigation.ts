@@ -1,6 +1,6 @@
-import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
-import { CompositeNavigationProp, RouteProp } from '@react-navigation/native';
-import { StackNavigationProp } from '@react-navigation/stack';
+import { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+import { CompositeNavigationProp, RouteProp } from "@react-navigation/native";
+import { StackNavigationProp } from "@react-navigation/stack";
 
 // Bottom Tab Navigator
 export type BottomTabParamList = {
@@ -34,27 +34,31 @@ export type RootStackParamList = {
 };
 
 // Navigation prop types
-export type BottomTabNavigationProps<T extends keyof BottomTabParamList> = 
+export type BottomTabNavigationProps<T extends keyof BottomTabParamList> =
   BottomTabNavigationProp<BottomTabParamList, T>;
 
-export type RootStackNavigationProps<T extends keyof RootStackParamList> = 
+export type RootStackNavigationProps<T extends keyof RootStackParamList> =
   StackNavigationProp<RootStackParamList, T>;
 
-export type CompositeNavigationProps<T extends keyof BottomTabParamList> = 
+export type CompositeNavigationProps<T extends keyof BottomTabParamList> =
   CompositeNavigationProp<
     BottomTabNavigationProp<BottomTabParamList, T>,
     StackNavigationProp<RootStackParamList>
   >;
 
 // Route prop types
-export type BottomTabRouteProps<T extends keyof BottomTabParamList> = 
-  RouteProp<BottomTabParamList, T>;
+export type BottomTabRouteProps<T extends keyof BottomTabParamList> = RouteProp<
+  BottomTabParamList,
+  T
+>;
 
-export type RootStackRouteProps<T extends keyof RootStackParamList> = 
-  RouteProp<RootStackParamList, T>;
+export type RootStackRouteProps<T extends keyof RootStackParamList> = RouteProp<
+  RootStackParamList,
+  T
+>;
 
 // Screen props
 export type ScreenProps<T extends keyof BottomTabParamList> = {
   navigation: CompositeNavigationProps<T>;
   route: BottomTabRouteProps<T>;
-}; 
+};

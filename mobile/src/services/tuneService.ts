@@ -1,5 +1,5 @@
-import apiClient from './api';
-import { MotorcycleListItem } from './motorcycleService';
+import apiClient from "./api";
+import { MotorcycleListItem } from "./motorcycleService";
 
 export interface TuneCategory {
   name: string;
@@ -111,7 +111,7 @@ export interface TuneFilters {
   safety_rating?: string;
   price_min?: number;
   price_max?: number;
-  pricing?: 'free' | 'paid';
+  pricing?: "free" | "paid";
   is_open_source?: boolean;
   dyno_tested?: boolean;
   street_legal?: boolean;
@@ -125,25 +125,25 @@ export interface TuneFilters {
 class TuneService {
   // Get all categories
   async getCategories(): Promise<TuneCategory[]> {
-    const response = await apiClient.get('/tunes/categories/');
+    const response = await apiClient.get("/tunes/categories/");
     return response.data;
   }
 
   // Get all tune types
   async getTuneTypes(): Promise<TuneType[]> {
-    const response = await apiClient.get('/tunes/types/');
+    const response = await apiClient.get("/tunes/types/");
     return response.data;
   }
 
   // Get all safety ratings
   async getSafetyRatings(): Promise<SafetyRating[]> {
-    const response = await apiClient.get('/tunes/safety-ratings/');
+    const response = await apiClient.get("/tunes/safety-ratings/");
     return response.data;
   }
 
   // Get all creators
   async getCreators(): Promise<TuneCreator[]> {
-    const response = await apiClient.get('/tunes/creators/');
+    const response = await apiClient.get("/tunes/creators/");
     return response.data;
   }
 
@@ -161,10 +161,10 @@ class TuneService {
     previous?: string;
   }> {
     const params = new URLSearchParams();
-    
+
     if (filters) {
       Object.entries(filters).forEach(([key, value]) => {
-        if (value !== undefined && value !== '') {
+        if (value !== undefined && value !== "") {
           params.append(key, value.toString());
         }
       });
@@ -188,39 +188,41 @@ class TuneService {
 
   // Get featured tunes
   async getFeaturedTunes(): Promise<TuneListItem[]> {
-    const response = await apiClient.get('/tunes/tunes/featured/');
+    const response = await apiClient.get("/tunes/tunes/featured/");
     return response.data;
   }
 
   // Get popular tunes
   async getPopularTunes(): Promise<TuneListItem[]> {
-    const response = await apiClient.get('/tunes/tunes/popular/');
+    const response = await apiClient.get("/tunes/tunes/popular/");
     return response.data;
   }
 
   // Get recent tunes
   async getRecentTunes(): Promise<TuneListItem[]> {
-    const response = await apiClient.get('/tunes/tunes/recent/');
+    const response = await apiClient.get("/tunes/tunes/recent/");
     return response.data;
   }
 
   // Get free tunes
   async getFreeTunes(): Promise<TuneListItem[]> {
-    const response = await apiClient.get('/tunes/tunes/free/');
+    const response = await apiClient.get("/tunes/tunes/free/");
     return response.data;
   }
 
   // Get platform statistics
   async getTuneStats(): Promise<TuneStats> {
-    const response = await apiClient.get('/tunes/stats/');
+    const response = await apiClient.get("/tunes/stats/");
     return response.data;
   }
 
   // Get search suggestions
   async getSearchSuggestions(query: string): Promise<string[]> {
-    const response = await apiClient.get(`/tunes/search/suggestions/?q=${encodeURIComponent(query)}`);
+    const response = await apiClient.get(
+      `/tunes/search/suggestions/?q=${encodeURIComponent(query)}`
+    );
     return response.data;
   }
 }
 
-export default new TuneService(); 
+export default new TuneService();

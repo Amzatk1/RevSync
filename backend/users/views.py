@@ -122,27 +122,7 @@ class UserGarageDetailView(generics.RetrieveUpdateDestroyAPIView):
         return UserGarage.objects.filter(user=self.request.user)
 
 
-class RideSessionListView(generics.ListCreateAPIView):
-    """User's ride sessions"""
-    serializer_class = RideSessionSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    
-    def get_queryset(self):
-        return RideSession.objects.filter(
-            user=self.request.user
-        ).select_related('motorcycle__manufacturer').order_by('-start_time')
-    
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
-
-
-class RideSessionDetailView(generics.RetrieveUpdateDestroyAPIView):
-    """Individual ride session management"""
-    serializer_class = RideSessionSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    
-    def get_queryset(self):
-        return RideSession.objects.filter(user=self.request.user)
+# Ride session functionality removed - focusing on tunes only
 
 
 class UserAchievementsView(generics.ListAPIView):
@@ -166,29 +146,22 @@ class UserStatsView(generics.RetrieveAPIView):
         return stats
     
     def update_user_stats(self, stats):
-        """Update user statistics from ride sessions"""
+        """Update user statistics - now focused on tunes and garage"""
         user = self.request.user
-        rides = user.ride_sessions.all()
         
-        stats.total_rides = rides.count()
-        stats.total_distance_km = rides.aggregate(
-            total=Sum('distance_km'))['total'] or 0
-        stats.total_ride_time_minutes = rides.aggregate(
-            total=Sum('duration_minutes'))['total'] or 0
+        # Reset ride-related stats since we removed ride functionality
+        stats.total_rides = 0
+        stats.total_distance_km = 0
+        stats.total_ride_time_minutes = 0
+        stats.avg_ride_distance_km = 0
+        stats.avg_ride_duration_minutes = 0
+        stats.max_speed_achieved_kmh = 0
+        stats.avg_speed_overall_kmh = 0
+        stats.total_fuel_consumed_liters = 0
+        stats.last_ride_date = None
         
-        if stats.total_rides > 0:
-            stats.avg_ride_distance_km = stats.total_distance_km / stats.total_rides
-            stats.avg_ride_duration_minutes = stats.total_ride_time_minutes / stats.total_rides
-        
-        stats.max_speed_achieved_kmh = rides.aggregate(
-            max_speed=Max('max_speed_kmh'))['max_speed'] or 0
-        stats.avg_speed_overall_kmh = rides.aggregate(
-            avg_speed=Avg('avg_speed_kmh'))['avg_speed'] or 0
-        stats.total_fuel_consumed_liters = rides.aggregate(
-            total=Sum('fuel_consumed_liters'))['total'] or 0
-        
+        # Focus on tune and garage related stats
         stats.achievements_unlocked = user.achievements.filter(is_completed=True).count()
-        stats.last_ride_date = rides.order_by('-start_time').first().start_time.date() if rides.exists() else None
         
         stats.save()
 
@@ -340,91 +313,25 @@ def user_analytics(request):
     })
 
 
-@api_view(['POST'])
-@permission_classes([permissions.IsAuthenticated])
-def start_ride_session(request):
-    """Start a new ride session"""
-    data = request.data.copy()
-    data['user'] = request.user.id
-    data['start_time'] = timezone.now()
-    
-    serializer = RideSessionSerializer(data=data)
-    if serializer.is_valid():
-        ride = serializer.save(user=request.user)
-        return Response({
-            'ride_session': RideSessionSerializer(ride).data,
-            'message': 'Ride session started'
-        }, status=status.HTTP_201_CREATED)
-    return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-@api_view(['POST'])
-@permission_classes([permissions.IsAuthenticated])
-def end_ride_session(request, session_id):
-    """End an active ride session"""
-    try:
-        ride = RideSession.objects.get(id=session_id, user=request.user)
-        if ride.end_time:
-            return Response({'error': 'Ride session already ended'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        ride.end_time = timezone.now()
-        ride.duration_minutes = int((ride.end_time - ride.start_time).total_seconds() / 60)
-        
-        # Update with any additional data from request
-        for field in ['distance_km', 'avg_speed_kmh', 'max_speed_kmh', 'fuel_consumed_liters', 
-                     'weather_condition', 'temperature_celsius', 'enjoyment_rating', 'safety_rating', 'notes']:
-            if field in request.data:
-                setattr(ride, field, request.data[field])
-        
-        ride.save()
-        
-        # Update user stats
-        self.update_user_stats_after_ride(request.user, ride)
-        
-        return Response({
-            'ride_session': RideSessionSerializer(ride).data,
-            'message': 'Ride session completed'
-        })
-        
-    except RideSession.DoesNotExist:
-        return Response({'error': 'Ride session not found'}, status=status.HTTP_404_NOT_FOUND)
-
-
-def update_user_stats_after_ride(user, ride):
-    """Update user stats after completing a ride"""
-    stats, created = UserStats.objects.get_or_create(user=user)
-    
-    stats.total_rides += 1
-    if ride.distance_km:
-        stats.total_distance_km += ride.distance_km
-    if ride.duration_minutes:
-        stats.total_ride_time_minutes += ride.duration_minutes
-    if ride.max_speed_kmh and ride.max_speed_kmh > stats.max_speed_achieved_kmh:
-        stats.max_speed_achieved_kmh = ride.max_speed_kmh
-    
-    # Recalculate averages
-    all_rides = user.ride_sessions.all()
-    stats.avg_ride_distance_km = all_rides.aggregate(Avg('distance_km'))['distance_km__avg'] or 0
-    stats.avg_ride_duration_minutes = all_rides.aggregate(Avg('duration_minutes'))['duration_minutes__avg'] or 0
-    stats.avg_speed_overall_kmh = all_rides.aggregate(Avg('avg_speed_kmh'))['avg_speed_kmh__avg'] or 0
-    
-    stats.last_ride_date = ride.start_time.date()
-    stats.save()
+# Ride session functionality removed - focusing on tunes only
 
 
 @api_view(['GET'])
 @permission_classes([permissions.AllowAny])
 def platform_stats(request):
-    """Public platform statistics"""
+    """Public platform statistics - focused on tunes marketplace"""
+    from tunes.models import Tune
+    from bikes.models import Motorcycle
+    
     total_users = User.objects.count()
-    total_rides = RideSession.objects.count()
-    total_distance = RideSession.objects.aggregate(Sum('distance_km'))['distance_km__sum'] or 0
+    total_tunes = Tune.objects.count()
+    total_motorcycles = Motorcycle.objects.count()
     
     return Response({
         'total_users': total_users,
-        'total_rides': total_rides,
-        'total_distance_km': float(total_distance),
-        'avg_rides_per_user': round(total_rides / total_users, 1) if total_users else 0,
+        'total_tunes': total_tunes,
+        'total_motorcycles': total_motorcycles,
+        'avg_tunes_per_user': round(total_tunes / total_users, 1) if total_users else 0,
     })
 
 

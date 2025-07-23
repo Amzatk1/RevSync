@@ -42,7 +42,7 @@ LOCAL_APPS = [
     'users',  # Phase 2: User profiles and authentication
     'bikes',
     'tunes',
-    'telemetry',  # Added telemetry app
+    'ai',     # AI-powered recommendations and safety analysis
     # 'accounts',
     # 'motorcycles',
     # 'hardware',
@@ -87,24 +87,25 @@ TEMPLATES = [
 WSGI_APPLICATION = 'revsync.wsgi.application'
 
 # Database
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+# Use PostgreSQL for production, SQLite for local development
+if config('USE_POSTGRES', default=False, cast=bool):
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': config('DB_NAME', default='revsync'),
+            'USER': config('DB_USER', default='revsync'),
+            'PASSWORD': config('DB_PASSWORD', default='password'),
+            'HOST': config('DB_HOST', default='localhost'),
+            'PORT': config('DB_PORT', default='5432'),
+        }
     }
-}
-
-# PostgreSQL configuration (commented out for development)
-# DATABASES = {
-#     'default': {
-#         'ENGINE': 'django.db.backends.postgresql',
-#         'NAME': config('DB_NAME', default='revsync'),
-#         'USER': config('DB_USER', default='revsync'),
-#         'PASSWORD': config('DB_PASSWORD', default='password'),
-#         'HOST': config('DB_HOST', default='localhost'),
-#         'PORT': config('DB_PORT', default='5432'),
-#     }
-# }
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
@@ -292,16 +293,31 @@ REVSYNC_SETTINGS = {
     'FLASH_TIMEOUT_SECONDS': 300,
 }
 
-# Marketplace Settings
+# AI Configuration - 100% FREE LOCAL DEPLOYMENT
+AI_SETTINGS = {
+    'OLLAMA_HOST': config('OLLAMA_HOST', default='http://localhost:11434'),
+    'MISTRAL_MODEL': config('MISTRAL_MODEL', default='mistral:7b'),  # FREE local model
+    'EMBEDDING_MODEL': 'all-MiniLM-L6-v2',  # FREE embeddings
+    'LLM_TIMEOUT_SECONDS': 30,
+    'RECOMMENDATION_CACHE_TIMEOUT': 3600,  # 1 hour
+    'SAFETY_ANALYSIS_REQUIRED': True,
+    'MIN_SAFETY_SCORE': 60,  # Minimum safety score for approval
+    'USE_LOCAL_LLM': True,  # Use FREE local deployment
+    'FALLBACK_TO_SIMPLE_RULES': True,  # Fallback if LLM unavailable
+}
+
+# Marketplace Settings  
 MARKETPLACE_SETTINGS = {
-    'PLATFORM_COMMISSION_RATE': Decimal('0.30'),  # 30% platform fee
-    'CREATOR_REVENUE_SHARE': Decimal('0.70'),      # 70% to creator
+    'PLATFORM_COMMISSION_RATE': Decimal('0.20'),  # 20% platform fee (as requested)
+    'CREATOR_REVENUE_SHARE': Decimal('0.80'),      # 80% to creator (as requested)
     'MINIMUM_PAYOUT_AMOUNT': Decimal('50.00'),     # $50 minimum payout
     'PAYOUT_SCHEDULE_DAYS': 30,                    # Monthly payouts
     'MAX_DOWNLOADS_PER_PURCHASE': 3,               # Download limit
     'RENTAL_MAX_DURATION_DAYS': 30,                # Max rental period
     'FEATURED_LISTING_COST': Decimal('25.00'),     # Cost to feature a listing
     'AUTO_APPROVE_VERIFIED_CREATORS': True,        # Skip review for verified creators
-    'SAFETY_VALIDATION_REQUIRED': True,            # Require safety validation
+    'SAFETY_VALIDATION_REQUIRED': True,            # Require safety validation with AI
     'TRACK_MODE_ADDITIONAL_WARNINGS': True,        # Extra warnings for track tunes
+    'AI_SAFETY_ANALYSIS_REQUIRED': True,           # Require AI safety analysis
+    'LLM_APPROVAL_THRESHOLD': Decimal('0.80'),     # 80% AI confidence for auto-approval
 } 

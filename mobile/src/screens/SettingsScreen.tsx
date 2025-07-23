@@ -14,7 +14,7 @@ import {
   MomentumScrollView,
 } from "../components/awardWinning";
 import SettingsRow from "../components/awardWinning/SettingsRow";
-import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 
 const version = "1.2.3";
 

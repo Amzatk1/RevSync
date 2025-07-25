@@ -1,19 +1,20 @@
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { Platform } from "react-native";
+import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 
-import { AwardWinningTheme as Theme } from "../styles/awardWinningTheme";
+// Type fixes for React 18+ compatibility
+const TypedIcon = Icon as any;
+
+import { Theme } from "../styles/theme";
 import MarketplaceScreen from "../screens/MarketplaceScreen";
 import { GarageScreen } from "../screens/GarageScreen";
 import { CommunityScreen } from "../screens/CommunityScreen";
 import { ProfileScreen } from "../screens/ProfileScreen";
-import SafetyDisclaimerScreen from "../screens/SafetyDisclaimerScreen";
-import SettingsScreen from "../screens/SettingsScreen";
 
 const Tab = createBottomTabNavigator();
 
-export const BottomTabNavigator: React.FC = () => {
+const BottomTabNavigator: React.FC = () => {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -37,14 +38,14 @@ export const BottomTabNavigator: React.FC = () => {
               iconName = "help-circle-outline";
           }
 
-          return <Icon name={iconName} size={size} color={color} />;
+          return <TypedIcon name={iconName} size={size} color={color} />;
         },
         tabBarActiveTintColor: Theme.colors.accent.primary,
         tabBarInactiveTintColor: Theme.colors.content.primarySecondary,
         tabBarStyle: {
           backgroundColor: Theme.colors.content.backgroundElevated,
           borderTopWidth: 1,
-          borderTopColor: Theme.colors.border,
+          borderTopColor: Theme.colors.content.border,
           paddingTop: 5,
           paddingBottom: Platform.OS === "ios" ? 25 : 10,
           height: Platform.OS === "ios" ? 85 : 65,
@@ -91,16 +92,8 @@ export const BottomTabNavigator: React.FC = () => {
           tabBarLabel: "Profile",
         }}
       />
-      <Tab.Screen
-        name="Settings"
-        component={SettingsScreen}
-        options={{
-          tabBarLabel: "Settings",
-          tabBarIcon: ({ color, size }) => (
-            <Icon name="cog" color={color} size={size} />
-          ),
-        }}
-      />
     </Tab.Navigator>
   );
 };
+
+export default BottomTabNavigator;

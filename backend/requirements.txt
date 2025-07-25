@@ -25,7 +25,7 @@ django-debug-toolbar==4.2.0
 factory-boy==3.3.0
 
 # Security & Validation
-cryptography==43.0.3
+cryptography==41.0.8
 pycryptodome==3.19.0
 
 # Utilities
@@ -67,3 +67,30 @@ redis==5.0.1
 
 # Environment & Configuration
 python-dotenv==1.0.0 
+
+# Supabase and Authentication
+supabase==2.3.4
+gotrue==2.3.0
+postgrest-py==0.13.2
+storage3==0.7.4
+realtime==1.0.0
+
+# JWT and Security
+PyJWT==2.8.0
+python-jose[cryptography]==3.3.0
+
+# Social Authentication
+google-auth==2.25.2
+google-auth-oauthlib==1.1.0
+apple-signin==0.1.0
+
+# OTP and SMS
+twilio==8.11.0
+pyotp==2.9.0
+
+# Email
+sendgrid==6.11.0
+
+# Additional security
+bcrypt==4.1.2
+passlib[bcrypt]==1.7.4 

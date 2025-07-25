@@ -12,10 +12,16 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-import { useNavigation } from "@react-navigation/native";
+
+// Type fixes for React 18+ compatibility
+const TypedIcon = Icon as any;import { useNavigation } from "@react-navigation/native";
 import LinearGradient from "react-native-linear-gradient";
 
-import { AwardWinningTheme as Theme } from "../styles/awardWinningTheme";
+// Type fixes for React 18+ compatibility
+const TypedIcon = Icon as any;
+const TypedLinearGradient = LinearGradient as any;
+
+import { Theme } from "../styles/theme";
 
 interface Creator {
   id: string;
@@ -288,7 +294,7 @@ export const CommunityScreen: React.FC = () => {
           <View style={styles.tuneBadges}>
             {tune.is_open_source && (
               <View style={[styles.badge, styles.openSourceBadge]}>
-                <Icon name="code-tags" size={10} color={#FFFFFF} />
+                <TypedIcon name="code-tags" size={10} color={"#FFFFFF"} />
                 <Text style={styles.badgeText}>Open</Text>
               </View>
             )}
@@ -352,16 +358,16 @@ export const CommunityScreen: React.FC = () => {
 
   const renderUploadFlow = () => (
     <View style={styles.uploadContainer}>
-      <LinearGradient
+      <TypedLinearGradient
         colors={[Theme.colors.accent.primary, Theme.colors.accent.primaryDark]}
         style={styles.uploadHeader}
       >
-        <Icon name="upload" size={32} color={#FFFFFF} />
+        <TypedIcon name="upload" size={32} color={"#FFFFFF"} />
         <Text style={styles.uploadTitle}>Share Your Tune</Text>
         <Text style={styles.uploadSubtitle}>
           Contribute to the community and earn from your expertise
         </Text>
-      </LinearGradient>
+      </TypedLinearGradient>
 
       <View style={styles.uploadSteps}>
         <View style={styles.uploadStep}>
@@ -419,7 +425,7 @@ export const CommunityScreen: React.FC = () => {
         style={styles.startUploadButton}
         onPress={() => console.log("Upload tune pressed")}
       >
-        <Icon name="plus" size={20} color={#FFFFFF} />
+        <TypedIcon name="plus" size={20} color={"#FFFFFF"} />
         <Text style={styles.startUploadText}>Start Upload Process</Text>
       </TouchableOpacity>
 
@@ -427,12 +433,12 @@ export const CommunityScreen: React.FC = () => {
         <Text style={styles.benefitsTitle}>Creator Benefits</Text>
 
         <View style={styles.benefitItem}>
-          <Icon name="cash" size={20} color={Theme.colors.semantic.success} />
+          <TypedIcon name="cash" size={20} color={Theme.colors.semantic.success} />
           <Text style={styles.benefitText}>70% revenue share on all sales</Text>
         </View>
 
         <View style={styles.benefitItem}>
-          <Icon name="trophy" size={20} color={Theme.colors.semantic.warning} />
+          <TypedIcon name="trophy" size={20} color={Theme.colors.semantic.warning} />
           <Text style={styles.benefitText}>Featured creator opportunities</Text>
         </View>
 
@@ -460,7 +466,7 @@ export const CommunityScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
-      <LinearGradient
+      <TypedLinearGradient
         colors={[Theme.colors.accent.primary, Theme.colors.accent.primaryDark]}
         style={styles.header}
       >
@@ -468,7 +474,7 @@ export const CommunityScreen: React.FC = () => {
         <Text style={styles.headerSubtitle}>
           Creators, tunes & collaboration
         </Text>
-      </LinearGradient>
+      </TypedLinearGradient>
 
       {/* Tab Navigation */}
       <View style={styles.tabContainer}>

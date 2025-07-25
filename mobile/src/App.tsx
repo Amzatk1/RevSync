@@ -1,97 +1,109 @@
-import React, { useEffect } from "react";
-import { StatusBar, Platform } from "react-native";
-import { Provider } from "react-redux";
-import { SafeAreaProvider } from "react-native-safe-area-context";
-import { NavigationContainer } from "@react-navigation/native";
-import { createStackNavigator } from "@react-navigation/stack";
+import React, { useEffect, useState } from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { createStackNavigator } from '@react-navigation/stack';
+import { StatusBar } from 'expo-status-bar';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
 
-import { store } from "./store";
-import { AwardWinningTheme as Theme } from "./styles/awardWinningTheme";
-import BottomTabNavigator from "./navigation/BottomTabNavigator";
-import { ErrorBoundary, initializeMonitoring } from "./config/monitoring";
+// Auth System
+import { 
+  AuthProvider, 
+  useAuth, 
+  WelcomeScreen, 
+  LoginScreen, 
+  RegisterScreen, 
+  ForgotPasswordScreen 
+} from './auth';
 
-const isDark = false; // Using light theme for award-winning design
-const isIOS = Platform.OS === "ios";
+// Onboarding
+import OnboardingScreen from './screens/OnboardingScreen';
+import WelcomeOnboardingScreen from './screens/WelcomeOnboardingScreen';
 
-// 🆓 FREE Error Fallback Component
-const AppErrorFallback: React.FC = () => {
-  const colors = Theme.colors;
+// Main App Navigation
+import BottomTabNavigator from './navigation/BottomTabNavigator';
 
+// Legal/Settings
+import { SettingsScreen } from './settings';
+import LegalDocuments from './settings/screens/LegalDocuments';
+
+const Stack = createStackNavigator();
+
+// Component to handle navigation based on auth and onboarding status
+const AppNavigator: React.FC = () => {
+  const { auth } = useAuth();
+  
+  // Show loading screen while auth is initializing
+  if (auth.isLoading || !auth.isInitialized) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#0b80ee" />
+      </View>
+    );
+  }
+
+  // User is not authenticated - show auth flow
+  if (!auth.isAuthenticated) {
+    return (
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="Welcome" component={WelcomeScreen} />
+        <Stack.Screen name="Login" component={LoginScreen} />
+        <Stack.Screen name="Register" component={RegisterScreen} />
+        <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+        <Stack.Screen name="LegalDocuments" component={LegalDocuments} />
+      </Stack.Navigator>
+    );
+  }
+
+  // User is authenticated but hasn't completed onboarding
+  if (!auth.user?.onboardingCompleted) {
+    return (
+      <Stack.Navigator screenOptions={{ headerShown: false }}>
+        <Stack.Screen 
+          name="WelcomeOnboarding" 
+          component={WelcomeOnboardingScreen} 
+        />
+        <Stack.Screen 
+          name="Onboarding" 
+          component={OnboardingScreen}
+          initialParams={{ 
+            onComplete: () => {
+              // Onboarding completion is handled by the AuthContext
+              // User will automatically be redirected to main app
+            }
+          }}
+        />
+      </Stack.Navigator>
+    );
+  }
+
+  // User is authenticated and has completed onboarding - show main app
   return (
-    <View
-      style={{
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-        padding: 20,
-        backgroundColor: isDark
-          ? colors.ios?.systemBackground || colors.material3?.background
-          : colors.ios?.systemBackground || colors.material3?.background,
-      }}
-    >
-      <Text
-        style={{
-          fontSize: Theme.typography.ios?.title1.fontSize || 24,
-          fontWeight: "bold",
-          color: colors.revsync.primary,
-          marginBottom: 16,
-          textAlign: "center",
-        }}
-      >
-        🏍️ RevSync
-      </Text>
-      <Text
-        style={{
-          fontSize: Theme.typography.ios?.callout.fontSize || 16,
-          marginBottom: 16,
-          textAlign: "center",
-          color: isDark
-            ? colors.ios?.label || colors.material3?.onBackground
-            : colors.ios?.label || colors.material3?.onBackground,
-        }}
-      >
-        Something went wrong
-      </Text>
-      <Text
-        style={{
-          fontSize: Theme.typography.ios?.footnote.fontSize || 13,
-          textAlign: "center",
-          color: isDark
-            ? colors.ios?.secondaryLabel || colors.material3?.onSurfaceVariant
-            : colors.ios?.secondaryLabel || colors.material3?.onSurfaceVariant,
-          lineHeight: 20,
-        }}
-      >
-        We're sorry for the inconvenience. Please restart the app to continue
-        discovering amazing motorcycle tunes!
-      </Text>
-    </View>
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="MainApp" component={BottomTabNavigator} />
+      <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="LegalDocuments" component={LegalDocuments} />
+    </Stack.Navigator>
   );
 };
 
-// Main app content that uses theme
-
+// Main App Component
 const App: React.FC = () => {
-  useEffect(() => {
-    initializeMonitoring();
-  }, []);
-
   return (
-    <ErrorBoundary fallback={AppErrorFallback}>
-      <Provider store={store}>
-        <SafeAreaProvider>
-          <NavigationContainer>
-            <StatusBar
-              barStyle={isDark ? "light-content" : "dark-content"}
-              backgroundColor={isDark ? "#1a1a1a" : "#ffffff"}
-              translucent={isIOS}
-            />
-            <BottomTabNavigator />
-          </NavigationContainer>
-        </SafeAreaProvider>
-      </Provider>
-    </ErrorBoundary>
+    <AuthProvider>
+      <NavigationContainer>
+        <StatusBar style="auto" />
+        <AppNavigator />
+      </NavigationContainer>
+    </AuthProvider>
   );
 };
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#ffffff',
+  },
+});
 
 export default App;

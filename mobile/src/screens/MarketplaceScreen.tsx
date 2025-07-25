@@ -16,9 +16,15 @@ import {
 } from "react-native";
 import { useSelector, useDispatch } from "react-redux";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-import LinearGradient from "react-native-linear-gradient";
 
-import { AwardWinningTheme as Theme } from "../styles/awardWinningTheme";
+// Type fixes for React 18+ compatibility
+const TypedIcon = Icon as any;import LinearGradient from "react-native-linear-gradient";
+
+// Type fixes for React 18+ compatibility
+const TypedIcon = Icon as any;
+const TypedLinearGradient = LinearGradient as any;
+
+import { Theme } from "../styles/theme";
 import { RootState } from "../store";
 import { loadMarketplaceTunes, Tune } from "../store/slices/tuneSlice";
 import { TuneListItem } from "../services/tuneService";
@@ -223,11 +229,11 @@ const MarketplaceScreen: React.FC<MarketplaceScreenProps> = ({
 
   const renderFeaturedCollection = ({ item }: { item: any }) => (
     <TouchableOpacity style={styles.featuredCard}>
-      <LinearGradient colors={item.gradient} style={styles.featuredGradient}>
+      <TypedLinearGradient colors={item.gradient} style={styles.featuredGradient}>
         <Text style={styles.featuredTitle}>{item.title}</Text>
         <Text style={styles.featuredSubtitle}>{item.subtitle}</Text>
-        <Icon name="arrow-forward" size={20} color={#FFFFFF} />
-      </LinearGradient>
+        <TypedIcon name="arrow-forward" size={20} color={"#FFFFFF"} />
+      </TypedLinearGradient>
     </TouchableOpacity>
   );
 
@@ -308,7 +314,7 @@ const MarketplaceScreen: React.FC<MarketplaceScreenProps> = ({
             <Text style={styles.statText}>{item.download_count}</Text>
           </View>
           <View style={styles.statItem}>
-            <Icon name="star" size={14} color={Theme.colors.semantic.warning} />
+            <TypedIcon name="star" size={14} color={Theme.colors.semantic.warning} />
             <Text style={styles.statText}>{item.average_rating}</Text>
           </View>
         </View>

@@ -1,5 +1,6 @@
 from rest_framework import generics, status, permissions
 from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -29,6 +30,180 @@ from django.core.exceptions import ValidationError, PermissionDenied
 from django.shortcuts import get_object_or_404
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
+from django.contrib.auth import get_user_model
+from django.utils import timezone
+import json
+
+User = get_user_model()
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_user_profile(request):
+    """Get current user's profile"""
+    try:
+        user = request.user
+        user_data = {
+            'id': str(user.id),
+            'email': user.email,
+            'username': user.username,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'date_joined': user.date_joined.isoformat() if user.date_joined else None,
+        }
+        
+        # Add profile data if it exists
+        if hasattr(user, 'profile') and user.profile:
+            profile = user.profile
+            user_data.update({
+                'riding_experience': profile.riding_experience,
+                'preferred_riding_style': profile.preferred_riding_style,
+                'safety_tolerance': profile.safety_tolerance,
+                'performance_goals': profile.performance_goals,
+                'onboarding_completed': profile.onboarding_completed,
+                'onboarding_completed_at': profile.onboarding_completed_at.isoformat() if profile.onboarding_completed_at else None,
+                'motorcycle_type': profile.motorcycle_type,
+                'skill_level': profile.skill_level,
+                'riding_style': profile.riding_style,
+                'selected_bike_data': profile.selected_bike_data,
+            })
+        else:
+            # Default values if no profile exists
+            user_data.update({
+                'onboarding_completed': False,
+                'onboarding_completed_at': None,
+            })
+        
+        return Response(user_data)
+    except Exception as e:
+        return Response(
+            {'error': str(e)}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+@api_view(['PUT'])
+@permission_classes([IsAuthenticated])
+def update_user_profile(request):
+    """Update current user's profile"""
+    try:
+        user = request.user
+        data = request.data
+        
+        # Update user fields
+        if 'first_name' in data:
+            user.first_name = data['first_name']
+        if 'last_name' in data:
+            user.last_name = data['last_name']
+        user.save()
+        
+        # Get or create profile
+        try:
+            from auth.models import UserProfile
+            profile, created = UserProfile.objects.get_or_create(user=user)
+        except ImportError:
+            # Fallback if auth models don't exist yet
+            return Response({'error': 'Profile system not available'}, status=status.HTTP_501_NOT_IMPLEMENTED)
+        
+        # Update profile fields
+        if 'riding_experience' in data:
+            profile.riding_experience = data['riding_experience']
+        if 'preferred_riding_style' in data:
+            profile.preferred_riding_style = data['preferred_riding_style']
+        if 'safety_tolerance' in data:
+            profile.safety_tolerance = data['safety_tolerance']
+        if 'performance_goals' in data:
+            profile.performance_goals = data['performance_goals']
+        
+        profile.save()
+        
+        # Return updated data
+        return Response({
+            'id': str(user.id),
+            'email': user.email,
+            'username': user.username,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'riding_experience': profile.riding_experience,
+            'preferred_riding_style': profile.preferred_riding_style,
+            'safety_tolerance': profile.safety_tolerance,
+            'performance_goals': profile.performance_goals,
+        })
+    except Exception as e:
+        return Response(
+            {'error': str(e)}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def complete_onboarding(request):
+    """Complete user onboarding and save all onboarding data"""
+    try:
+        user = request.user
+        data = request.data
+        
+        # Validate required fields
+        required_fields = ['motorcycle_type', 'skill_level', 'riding_style']
+        for field in required_fields:
+            if field not in data:
+                return Response(
+                    {'error': f'Missing required field: {field}'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+        
+        # Get or create profile
+        try:
+            from auth.models import UserProfile
+            profile, created = UserProfile.objects.get_or_create(user=user)
+        except ImportError:
+            # Fallback if auth models don't exist yet
+            return Response({'error': 'Profile system not available'}, status=status.HTTP_501_NOT_IMPLEMENTED)
+        
+        # Update profile with onboarding data
+        profile.motorcycle_type = data.get('motorcycle_type', '')
+        profile.skill_level = data.get('skill_level', '')
+        profile.riding_style = data.get('riding_style', '')
+        
+        # Handle optional fields
+        if 'selected_bike_data' in data:
+            profile.selected_bike_data = data['selected_bike_data']
+        if 'riding_experience' in data:
+            profile.riding_experience = data['riding_experience']
+        if 'performance_goals' in data:
+            profile.performance_goals = data['performance_goals']
+        if 'safety_tolerance' in data:
+            profile.safety_tolerance = data['safety_tolerance']
+        
+        # Mark onboarding as completed
+        profile.onboarding_completed = True
+        profile.onboarding_completed_at = timezone.now()
+        
+        profile.save()
+        
+        # Return success response with updated user data
+        return Response({
+            'success': True,
+            'message': 'Onboarding completed successfully',
+            'user': {
+                'id': str(user.id),
+                'email': user.email,
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'onboarding_completed': True,
+                'onboarding_completed_at': profile.onboarding_completed_at.isoformat(),
+                'motorcycle_type': profile.motorcycle_type,
+                'skill_level': profile.skill_level,
+                'riding_style': profile.riding_style,
+                'riding_experience': profile.riding_experience,
+                'performance_goals': profile.performance_goals,
+                'safety_tolerance': profile.safety_tolerance,
+            }
+        })
+        
+    except Exception as e:
+        return Response(
+            {'error': str(e)}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 
 
 class UserRegistrationView(generics.CreateAPIView):

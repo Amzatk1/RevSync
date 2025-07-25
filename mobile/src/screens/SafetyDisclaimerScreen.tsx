@@ -8,12 +8,43 @@ import {
   Alert,
   SafeAreaView,
   Linking,
+  Dimensions,
+  Platform,
 } from "react-native";
-import { useNavigation } from "@react-navigation/native";
-import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import LinearGradient from "react-native-linear-gradient";
-import { AwardWinningTheme as Theme } from "../styles/awardWinningTheme";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Haptics from "expo-haptics";
+
+// Simple icon component to replace vector icons
+const SimpleIcon: React.FC<{ name: string; size: number; color: string }> = ({ name, size, color }) => {
+  const getIconText = (iconName: string) => {
+    switch (iconName) {
+      case 'shield-alert': return '🛡️';
+      case 'alert': return '⚠️';
+      case 'check': return '✓';
+      case 'help-circle': return '❓';
+      case 'arrow-right': return '→';
+      case 'arrow-down': return '↓';
+      default: return '•';
+    }
+  };
+
+  return (
+    <Text style={{
+      fontSize: size,
+      color,
+      fontWeight: 'bold',
+      textAlign: 'center',
+      minWidth: size
+    }}>
+      {getIconText(name)}
+    </Text>
+  );
+};
+
+import { Theme } from "../styles/theme";
+
+const { height } = Dimensions.get("window");
 
 interface SafetyDisclaimerScreenProps {
   route?: {
@@ -22,17 +53,19 @@ interface SafetyDisclaimerScreenProps {
       returnTo?: string;
     };
   };
+  navigation?: any;
 }
 
 const SafetyDisclaimerScreen: React.FC<SafetyDisclaimerScreenProps> = ({
   route,
+  navigation,
 }) => {
-  const navigation = useNavigation();
   const [hasReadDisclaimer, setHasReadDisclaimer] = useState(false);
   const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
-  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [acceptedRisks, setAcceptedRisks] = useState(false);
   const [acceptedLegal, setAcceptedLegal] = useState(false);
+  const [acceptedCompliance, setAcceptedCompliance] = useState(false);
+  const [acceptedProfessional, setAcceptedProfessional] = useState(false);
 
   const mandatory = route?.params?.mandatory ?? true;
   const returnTo = route?.params?.returnTo;
@@ -45,384 +78,375 @@ const SafetyDisclaimerScreen: React.FC<SafetyDisclaimerScreenProps> = ({
       layoutMeasurement.height + contentOffset.y >=
       contentSize.height - paddingToBottom
     ) {
-      setHasScrolledToBottom(true);
-      setHasReadDisclaimer(true);
+      if (!hasScrolledToBottom) {
+        setHasScrolledToBottom(true);
+        if (Platform.OS === "ios") {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+      }
     }
   };
 
-  const handleContinue = async () => {
-    if (!acceptedTerms || !acceptedRisks || !acceptedLegal) {
+  const handleAcceptanceChange = async (type: string) => {
+    if (Platform.OS === "ios") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+
+    switch (type) {
+      case "risks":
+        setAcceptedRisks(!acceptedRisks);
+        break;
+      case "legal":
+        setAcceptedLegal(!acceptedLegal);
+        break;
+      case "compliance":
+        setAcceptedCompliance(!acceptedCompliance);
+        break;
+      case "professional":
+        setAcceptedProfessional(!acceptedProfessional);
+        break;
+    }
+
+    // Save progress
+    try {
+      await AsyncStorage.setItem(
+        "safety_disclaimer_progress",
+        JSON.stringify({
+          acceptedRisks,
+          acceptedLegal,
+          acceptedCompliance,
+          acceptedProfessional,
+          hasScrolledToBottom,
+        })
+      );
+    } catch (error) {
+      console.log("Error saving progress:", error);
+    }
+  };
+
+  const handleContactSupport = () => {
+    Alert.alert(
+      "Contact Support",
+      "Choose how you'd like to contact our safety team:",
+      [
+        {
+          text: "Call Safety Hotline",
+          onPress: () => Linking.openURL("tel:+1-555-123-XXXX"),
+        },
+        {
+          text: "Email Safety Team",
+          onPress: () =>
+            Linking.openURL("mailto:safety@yourcompany.com?subject=Safety Question"),
+        },
+        { text: "Cancel", style: "cancel" },
+      ]
+    );
+  };
+
+  const canProceed = () => {
+    return (
+      acceptedRisks &&
+      acceptedLegal &&
+      acceptedCompliance &&
+      acceptedProfessional &&
+      hasScrolledToBottom
+    );
+  };
+
+  const handleAccept = async () => {
+    if (!canProceed()) {
       Alert.alert(
-        "Incomplete Acceptance",
-        "You must accept all terms and acknowledgments to continue using RevSync for ECU modifications.",
-        [{ text: "OK" }]
+        "Incomplete Acknowledgment",
+        "Please scroll through the entire disclaimer and accept all terms before proceeding."
       );
       return;
     }
 
     try {
-      // Store consent in AsyncStorage
-      const consentData = {
-        timestamp: new Date().toISOString(),
-        version: "1.0",
-        acceptedTerms,
-        acceptedRisks,
-        acceptedLegal,
-        userAgent: "RevSync Mobile App",
-      };
-
+      await AsyncStorage.setItem("safety_disclaimer_accepted", "true");
       await AsyncStorage.setItem(
-        "safety_disclaimer_consent",
-        JSON.stringify(consentData)
+        "safety_disclaimer_date",
+        new Date().toISOString()
       );
 
-      if (returnTo) {
-        navigation.navigate(returnTo as never);
-      } else {
-        navigation.goBack();
+      if (Platform.OS === "ios") {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       }
+
+      Alert.alert(
+        "Safety Disclaimer Accepted",
+        "Thank you for acknowledging our safety guidelines. Please ride safely!",
+        [
+          {
+            text: "Continue",
+            onPress: () => {
+              if (navigation && returnTo) {
+                navigation.navigate(returnTo);
+              } else if (navigation) {
+                navigation.goBack();
+              }
+            },
+          },
+        ]
+      );
     } catch (error) {
-      Alert.alert("Error", "Failed to save consent. Please try again.");
+      Alert.alert("Error", "Failed to save acceptance. Please try again.");
     }
   };
 
   const handleDecline = () => {
     Alert.alert(
-      "Safety Agreement Required",
-      "You must accept the safety agreement to use ECU modification features. You can still browse community content and resources.",
-      [
-        {
-          text: "Browse Only",
-          onPress: () => {
-            if (returnTo) {
-              navigation.navigate("Marketplace" as never);
-            } else {
-              navigation.goBack();
-            }
-          },
-        },
-        { text: "Review Again", style: "cancel" },
-      ]
+      "Disclaimer Required",
+      mandatory
+        ? "You must accept the safety disclaimer to use tuning features."
+        : "Are you sure you want to decline? Some features may be limited.",
+      mandatory
+        ? [{ text: "OK" }]
+        : [
+            { text: "Yes, Decline", onPress: () => navigation?.goBack() },
+            { text: "Review Again", style: "cancel" },
+          ]
     );
   };
-
-  const openPrivacyPolicy = () => {
-    Linking.openURL("https://revsync.app/privacy");
-  };
-
-  const openTermsOfService = () => {
-    Linking.openURL("https://revsync.app/terms");
-  };
-
-  const canContinue =
-    hasReadDisclaimer && acceptedTerms && acceptedRisks && acceptedLegal;
 
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
-      <LinearGradient
-        colors={[Theme.colors.semantic.error, "#cc0000"]}
-        style={styles.header}
-      >
+      <View style={[styles.header, { backgroundColor: '#FF6B6B' }]}>
         <View style={styles.headerContent}>
-          <Icon name="shield-alert" size={32} color={#FFFFFF} />
-          <Text style={styles.headerTitle}>⚠️ SAFETY AGREEMENT ⚠️</Text>
+          <SimpleIcon name="shield-alert" size={32} color="#FFFFFF" />
+          <Text style={styles.headerTitle}>Safety First</Text>
           <Text style={styles.headerSubtitle}>
-            REQUIRED FOR ECU MODIFICATIONS
+            Motorcycle Tuning Safety Disclaimer
           </Text>
         </View>
-      </LinearGradient>
+      </View>
 
       {/* Disclaimer Content */}
-      <ScrollView
-        style={styles.content}
-        onScroll={handleScroll}
-        scrollEventThrottle={400}
-        showsVerticalScrollIndicator={true}
-      >
+      <ScrollView style={styles.content} onScroll={handleScroll}>
         <View style={styles.warningBox}>
-          <Icon
-            name="alert-octagon"
-            size={48}
-            color={Theme.colors.semantic.error}
-          />
-          <Text style={styles.warningTitle}>CRITICAL SAFETY WARNING</Text>
+          <SimpleIcon name="alert" size={24} color="#FF3B30" />
           <Text style={styles.warningText}>
-            ECU modifications can be extremely dangerous and may result in:
+            CRITICAL SAFETY WARNING: Motorcycle ECU tuning involves significant
+            risks. Please read carefully.
           </Text>
         </View>
 
-        {/* Risk Categories */}
-        <View style={styles.riskSection}>
-          <Text style={styles.sectionTitle}>🚨 SERIOUS RISKS</Text>
-
-          <View style={styles.riskItem}>
-            <Icon name="skull" size={24} color={Theme.colors.semantic.error} />
-            <View style={styles.riskContent}>
-              <Text style={styles.riskTitle}>Risk of Injury or Death</Text>
-              <Text style={styles.riskDescription}>
-                • Loss of vehicle control leading to accidents{"\n"}• Engine
-                failure resulting in sudden loss of power{"\n"}• Fire or
-                explosion due to unsafe fuel/air mixtures{"\n"}• Mechanical
-                failures that may cause serious injury
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.riskItem}>
-            <Icon
-              name="engine"
-              size={24}
-              color={Theme.colors.semantic.warning}
-            />
-            <View style={styles.riskContent}>
-              <Text style={styles.riskTitle}>Engine and Vehicle Damage</Text>
-              <Text style={styles.riskDescription}>
-                • Permanent engine damage or destruction{"\n"}• ECU corruption
-                requiring expensive replacement{"\n"}• Damage to fuel, ignition,
-                or exhaust systems{"\n"}• Complete loss of motorcycle
-                functionality
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.riskItem}>
-            <Icon name="gavel" size={24} color={Theme.colors.info} />
-            <View style={styles.riskContent}>
-              <Text style={styles.riskTitle}>
-                Legal and Financial Consequences
-              </Text>
-              <Text style={styles.riskDescription}>
-                • Voiding of manufacturer warranties{"\n"}• Violation of
-                emissions regulations{"\n"}• Loss of insurance coverage{"\n"}•
-                Legal liability for accidents or damages
-              </Text>
-            </View>
-          </View>
+        {/* Risk Acknowledgment */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>⚠️ PERFORMANCE RISKS</Text>
+          <Text style={styles.sectionContent}>
+            Engine modifications can cause:
+            {"\n"}• Catastrophic engine failure
+            {"\n"}• Transmission damage
+            {"\n"}• Brake system stress
+            {"\n"}• Suspension component failure
+            {"\n"}• Tire degradation and blowouts
+            {"\n"}• Loss of vehicle control
+            {"\n"}• Fire and explosion risks
+            {"\n"}• Environmental damage
+          </Text>
         </View>
 
-        {/* Professional Requirements */}
-        <View style={styles.requirementSection}>
-          <Text style={styles.sectionTitle}>
-            👨‍🔧 PROFESSIONAL INSTALLATION REQUIRED
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>🏛️ LEGAL COMPLIANCE</Text>
+          <Text style={styles.sectionContent}>
+            You are responsible for ensuring modifications comply with:
+            {"\n"}• Federal EPA regulations
+            {"\n"}• State and local emissions laws  
+            {"\n"}• CARB compliance requirements
+            {"\n"}• DOT safety standards
+            {"\n"}• Insurance policy requirements
+            {"\n"}• Vehicle registration laws
+            {"\n"}• Roadworthiness certifications
+            {"\n"}• Noise ordinances
           </Text>
-          <Text style={styles.requirementText}>
-            ECU modifications should ONLY be performed by qualified
-            professionals with:
-          </Text>
-          <View style={styles.requirementList}>
-            <Text style={styles.requirementItem}>
-              • Proper diagnostic equipment and tools
-            </Text>
-            <Text style={styles.requirementItem}>
-              • Experience with your specific motorcycle model
-            </Text>
-            <Text style={styles.requirementItem}>
-              • Knowledge of safety protocols and procedures
-            </Text>
-            <Text style={styles.requirementItem}>
-              • Ability to restore original calibration if needed
-            </Text>
-            <Text style={styles.requirementItem}>
-              • Understanding of legal and warranty implications
-            </Text>
-          </View>
         </View>
 
-        {/* Legal Disclaimers */}
-        <View style={styles.legalSection}>
-          <Text style={styles.sectionTitle}>⚖️ LEGAL DISCLAIMERS</Text>
-
-          <View style={styles.disclaimerBox}>
-            <Text style={styles.disclaimerTitle}>ASSUMPTION OF RISK</Text>
-            <Text style={styles.disclaimerText}>
-              By using RevSync for ECU modifications, you expressly acknowledge
-              and agree that you assume ALL RISKS associated with motorcycle ECU
-              modifications, including but not limited to risks of personal
-              injury, death, property damage, and legal liability.
-            </Text>
-          </View>
-
-          <View style={styles.disclaimerBox}>
-            <Text style={styles.disclaimerTitle}>LIMITATION OF LIABILITY</Text>
-            <Text style={styles.disclaimerText}>
-              RevSync, its developers, and contributors SHALL NOT BE LIABLE for
-              any damages, injuries, losses, or legal consequences resulting
-              from the use of ECU modifications obtained through this platform.
-            </Text>
-          </View>
-
-          <View style={styles.disclaimerBox}>
-            <Text style={styles.disclaimerTitle}>NO WARRANTIES</Text>
-            <Text style={styles.disclaimerText}>
-              All content is provided "AS IS" without warranties of any kind. We
-              do not warrant the safety, compatibility, or performance of any
-              ECU modifications.
-            </Text>
-          </View>
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>🔧 TECHNICAL LIMITATIONS</Text>
+          <Text style={styles.sectionContent}>
+            Our AI recommendations have limitations:
+            {"\n"}• May not account for wear/damage
+            {"\n"}• Cannot predict individual riding styles
+            {"\n"}• Based on general motorcycle data
+            {"\n"}• May not reflect latest safety recalls
+            {"\n"}• Cannot guarantee compatibility
+            {"\n"}• May not account for aftermarket parts
+            {"\n"}• Limited real-world testing data
+            {"\n"}• Regional fuel variations not considered
+          </Text>
         </View>
 
-        {/* Age and Competency Requirements */}
-        <View style={styles.ageSection}>
-          <Text style={styles.sectionTitle}>
-            🔞 AGE AND COMPETENCY REQUIREMENTS
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>👨‍🔧 PROFESSIONAL REQUIREMENTS</Text>
+          <Text style={styles.sectionContent}>
+            ECU modifications should only be performed by:
+            {"\n"}• Licensed motorcycle technicians
+            {"\n"}• Certified tuning professionals
+            {"\n"}• Authorized service centers
+            {"\n"}• Experienced mechanics with proper tools
+            {"\n"}• Professionals with access to DYNO testing
+            {"\n"}• Technicians familiar with your bike model
+            {"\n"}• Shops with liability insurance
+            {"\n"}• DYNO-equipped facilities for validation
           </Text>
-          <Text style={styles.ageText}>
-            By proceeding, you confirm that you:
-          </Text>
-          <View style={styles.ageList}>
-            <Text style={styles.ageItem}>• Are at least 18 years of age</Text>
-            <Text style={styles.ageItem}>
-              • Have legal authority to modify your motorcycle
-            </Text>
-            <Text style={styles.ageItem}>
-              • Possess adequate technical knowledge for safe modifications
-            </Text>
-            <Text style={styles.ageItem}>
-              • Will seek professional assistance when appropriate
-            </Text>
-            <Text style={styles.ageItem}>
-              • Understand and accept all risks and consequences
-            </Text>
-          </View>
         </View>
 
-        {/* Read Indicator */}
-        {!hasScrolledToBottom && (
-          <View style={styles.scrollIndicator}>
-            <Icon
-              name="arrow-down"
-              size={24}
-              color={Theme.colors.content.primarySecondary}
-            />
-            <Text style={styles.scrollText}>
-              Scroll to read complete disclaimer
-            </Text>
-          </View>
-        )}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>📋 YOUR RESPONSIBILITIES</Text>
+          <Text style={styles.sectionContent}>
+            By using this app, you agree to:
+            {"\n"}• Consult qualified professionals before any modifications
+            {"\n"}• Verify all legal requirements in your jurisdiction
+            {"\n"}• Use appropriate safety equipment and procedures
+            {"\n"}• Understand your motorcycle's technical specifications
+            {"\n"}• Accept full responsibility for all modifications
+            {"\n"}• Maintain proper insurance coverage
+            {"\n"}• Follow all manufacturer safety guidelines
+            {"\n"}• Report any safety issues to [Your Company Name]
+          </Text>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>🚫 LIABILITY DISCLAIMER</Text>
+          <Text style={styles.sectionContent}>
+            [Your Company Name] and its affiliates disclaim all liability for:
+            {"\n"}• Personal injury or death
+            {"\n"}• Property damage or loss
+            {"\n"}• Environmental damage
+            {"\n"}• Legal violations or penalties
+            {"\n"}• Insurance claim denials
+            {"\n"}• Vehicle devaluation
+            {"\n"}• Performance degradation
+            {"\n"}• [Your Company Name] provides recommendations only
+          </Text>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>📞 SUPPORT & SAFETY CONTACTS</Text>
+          <Text style={styles.sectionContent}>
+            For safety questions or emergency support:
+            {"\n"}• Safety Hotline: +1 (555) 123-XXXX
+            {"\n"}• Email: safety@yourcompany.com
+            {"\n"}• Emergency: Contact local emergency services
+            {"\n"}• Technical Support: support@yourcompany.com
+          </Text>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>📝 ACKNOWLEDGMENT REQUIRED</Text>
+          <Text style={styles.sectionContent}>
+            Please acknowledge each section below to proceed:
+          </Text>
+        </View>
       </ScrollView>
 
-      {/* Consent Checkboxes */}
-      <View style={styles.consentSection}>
+      {/* Acceptance Checkboxes */}
+      <View style={styles.checkboxContainer}>
         <TouchableOpacity
-          style={styles.checkboxRow}
-          onPress={() => setAcceptedTerms(!acceptedTerms)}
-          disabled={!hasReadDisclaimer}
+          style={styles.checkbox}
+          onPress={() => handleAcceptanceChange("risks")}
         >
           <View
             style={[
-              styles.checkbox,
-              acceptedTerms && styles.checkboxChecked,
-              !hasReadDisclaimer && styles.checkboxDisabled,
-            ]}
-          >
-            {acceptedTerms && <Icon name="check" size={16} color={#FFFFFF} />}
-          </View>
-          <View style={styles.checkboxTextContainer}>
-            <Text
-              style={[
-                styles.checkboxText,
-                !hasReadDisclaimer && styles.disabledText,
-              ]}
-            >
-              I have read and agree to the{" "}
-              <Text style={styles.linkText} onPress={openTermsOfService}>
-                Terms of Service
-              </Text>{" "}
-              and{" "}
-              <Text style={styles.linkText} onPress={openPrivacyPolicy}>
-                Privacy Policy
-              </Text>
-            </Text>
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.checkboxRow}
-          onPress={() => setAcceptedRisks(!acceptedRisks)}
-          disabled={!hasReadDisclaimer}
-        >
-          <View
-            style={[
-              styles.checkbox,
+              styles.checkboxBox,
               acceptedRisks && styles.checkboxChecked,
-              !hasReadDisclaimer && styles.checkboxDisabled,
             ]}
           >
-            {acceptedRisks && <Icon name="check" size={16} color={#FFFFFF} />}
+            {acceptedRisks && (
+              <SimpleIcon name="check" size={16} color="#FFFFFF" />
+            )}
           </View>
-          <Text
-            style={[
-              styles.checkboxText,
-              !hasReadDisclaimer && styles.disabledText,
-            ]}
-          >
-            I understand and accept ALL RISKS associated with ECU modifications,
-            including risks of injury, death, and property damage
+          <Text style={styles.checkboxText}>
+            I understand the performance and safety risks
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.checkboxRow}
-          onPress={() => setAcceptedLegal(!acceptedLegal)}
-          disabled={!hasReadDisclaimer}
+          style={styles.checkbox}
+          onPress={() => handleAcceptanceChange("legal")}
         >
           <View
             style={[
-              styles.checkbox,
+              styles.checkboxBox,
               acceptedLegal && styles.checkboxChecked,
-              !hasReadDisclaimer && styles.checkboxDisabled,
             ]}
           >
-            {acceptedLegal && <Icon name="check" size={16} color={#FFFFFF} />}
+            {acceptedLegal && (
+              <SimpleIcon name="check" size={16} color="#FFFFFF" />
+            )}
           </View>
-          <Text
+          <Text style={styles.checkboxText}>
+            I will ensure legal compliance in my jurisdiction
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.checkbox}
+          onPress={() => handleAcceptanceChange("compliance")}
+        >
+          <View
             style={[
-              styles.checkboxText,
-              !hasReadDisclaimer && styles.disabledText,
+              styles.checkboxBox,
+              acceptedCompliance && styles.checkboxChecked,
             ]}
           >
-            I agree to hold RevSync harmless and release all liability for any
-            consequences of ECU modifications
+            {acceptedCompliance && (
+              <SimpleIcon name="check" size={16} color="#FFFFFF" />
+            )}
+          </View>
+          <Text style={styles.checkboxText}>
+            I understand AI limitations and technical requirements
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.checkbox}
+          onPress={() => handleAcceptanceChange("professional")}
+        >
+          <View
+            style={[
+              styles.checkboxBox,
+              acceptedProfessional && styles.checkboxChecked,
+            ]}
+          >
+            {acceptedProfessional && (
+              <SimpleIcon name="check" size={16} color="#FFFFFF" />
+            )}
+          </View>
+          <Text style={styles.checkboxText}>
+            I will only use qualified professionals for modifications
           </Text>
         </TouchableOpacity>
       </View>
+
+      {/* Support Link */}
+      <TouchableOpacity style={styles.supportLink} onPress={handleContactSupport}>
+        <SimpleIcon name="help-circle" size={20} color={Theme.colors.accent.primary} />
+        <Text style={styles.supportText}>Need help? Contact Safety Support</Text>
+      </TouchableOpacity>
 
       {/* Action Buttons */}
       <View style={styles.buttonContainer}>
         <TouchableOpacity
-          style={[styles.button, styles.declineButton]}
-          onPress={handleDecline}
-        >
-          <Text style={styles.declineButtonText}>Decline</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
           style={[
-            styles.button,
             styles.acceptButton,
-            !canContinue && styles.buttonDisabled,
+            !canProceed() && styles.acceptButtonDisabled,
           ]}
-          onPress={handleContinue}
-          disabled={!canContinue}
+          onPress={handleAccept}
+          disabled={!canProceed()}
         >
-          <Text
-            style={[
-              styles.acceptButtonText,
-              !canContinue && styles.buttonTextDisabled,
-            ]}
-          >
-            Accept & Continue
+          <SimpleIcon name="arrow-right" size={20} color="#FFFFFF" />
+          <Text style={styles.acceptButtonText}>
+            I Accept All Terms & Responsibilities
           </Text>
         </TouchableOpacity>
-      </View>
 
-      {/* Footer Warning */}
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>
-          ⚠️ By accepting, you acknowledge the serious risks of ECU
-          modifications
-        </Text>
+        <TouchableOpacity style={styles.declineButton} onPress={handleDecline}>
+          <SimpleIcon name="arrow-down" size={16} color="#FF6B6B" />
+          <Text style={styles.declineButtonText}>Decline</Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
@@ -444,13 +468,13 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: #FFFFFF,
+    color: Theme.colors.content.primary,
     marginTop: 8,
     textAlign: "center",
   },
   headerSubtitle: {
     fontSize: 14,
-    color: #FFFFFF,
+    color: Theme.colors.content.primarySecondary,
     marginTop: 4,
     textAlign: "center",
     opacity: 0.9,
@@ -461,19 +485,12 @@ const styles = StyleSheet.create({
   },
   warningBox: {
     backgroundColor: "#ffe6e6",
-    padding: 20,
+    padding: 16,
     borderRadius: 12,
     alignItems: "center",
     marginVertical: 16,
     borderWidth: 2,
     borderColor: Theme.colors.semantic.error,
-  },
-  warningTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: Theme.colors.semantic.error,
-    marginTop: 12,
-    textAlign: "center",
   },
   warningText: {
     fontSize: 14,
@@ -482,8 +499,13 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 20,
   },
-  riskSection: {
+  section: {
     marginVertical: 16,
+    backgroundColor: Theme.colors.content.backgroundElevated,
+    padding: 16,
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: Theme.colors.accent.primary,
   },
   sectionTitle: {
     fontSize: 16,
@@ -491,126 +513,57 @@ const styles = StyleSheet.create({
     color: Theme.colors.content.primary,
     marginBottom: 12,
   },
-  riskItem: {
-    flexDirection: "row",
-    backgroundColor: Theme.colors.content.backgroundElevated,
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: Theme.colors.semantic.error,
-  },
-  riskContent: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  riskTitle: {
+  sectionContent: {
     fontSize: 14,
-    fontWeight: "bold",
-    color: Theme.colors.content.primary,
-    marginBottom: 4,
-  },
-  riskDescription: {
-    fontSize: 12,
     color: Theme.colors.content.primarySecondary,
-    lineHeight: 18,
-  },
-  requirementSection: {
-    marginVertical: 16,
-    backgroundColor: Theme.colors.content.backgroundElevated,
-    padding: 16,
-    borderRadius: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: Theme.colors.semantic.warning,
-  },
-  requirementText: {
-    fontSize: 14,
-    color: Theme.colors.content.primary,
-    marginBottom: 8,
     lineHeight: 20,
   },
-  requirementList: {
-    marginTop: 8,
-  },
-  requirementItem: {
-    fontSize: 12,
-    color: Theme.colors.content.primarySecondary,
-    lineHeight: 18,
-    marginBottom: 4,
-  },
-  legalSection: {
-    marginVertical: 16,
-  },
-  disclaimerBox: {
-    backgroundColor: Theme.colors.content.backgroundElevated,
-    padding: 16,
-    borderRadius: 8,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: Theme.colors.border,
-  },
-  disclaimerTitle: {
-    fontSize: 14,
-    fontWeight: "bold",
-    color: Theme.colors.content.primary,
-    marginBottom: 8,
-  },
-  disclaimerText: {
-    fontSize: 12,
-    color: Theme.colors.content.primarySecondary,
-    lineHeight: 18,
-  },
-  ageSection: {
-    marginVertical: 16,
-    backgroundColor: Theme.colors.content.backgroundElevated,
-    padding: 16,
-    borderRadius: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: Theme.colors.info,
-  },
-  ageText: {
-    fontSize: 14,
-    color: Theme.colors.content.primary,
-    marginBottom: 8,
-    lineHeight: 20,
-  },
-  ageList: {
-    marginTop: 8,
-  },
-  ageItem: {
-    fontSize: 12,
-    color: Theme.colors.content.primarySecondary,
-    lineHeight: 18,
-    marginBottom: 4,
-  },
-  scrollIndicator: {
+  documentInfo: {
+    marginTop: 20,
     alignItems: "center",
-    paddingVertical: 20,
   },
-  scrollText: {
+  documentInfoText: {
     fontSize: 12,
     color: Theme.colors.content.primarySecondary,
-    marginTop: 8,
   },
-  consentSection: {
+  acknowledgmentContainer: {
     backgroundColor: Theme.colors.content.backgroundElevated,
     padding: 16,
     borderTopWidth: 1,
-    borderTopColor: Theme.colors.border,
+    borderTopColor: Theme.colors.content.border,
   },
-  checkboxRow: {
+  acknowledgmentTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: Theme.colors.content.primary,
+    marginBottom: 8,
+  },
+  acknowledgmentSubtitle: {
+    fontSize: 14,
+    color: Theme.colors.content.primarySecondary,
+    marginBottom: 16,
+  },
+  checkboxContainer: {
     flexDirection: "row",
-    alignItems: "flex-start",
+    alignItems: "center",
     marginBottom: 16,
   },
   checkbox: {
     width: 20,
     height: 20,
     borderWidth: 2,
-    borderColor: Theme.colors.border,
     borderRadius: 4,
+    borderColor: Theme.colors.content.border,
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 12,
-    marginTop: 2,
+  },
+  checkboxBox: {
+    width: 20,
+    height: 20,
+    borderWidth: 2,
+    borderRadius: 4,
+    borderColor: Theme.colors.content.border,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -618,71 +571,114 @@ const styles = StyleSheet.create({
     backgroundColor: Theme.colors.accent.primary,
     borderColor: Theme.colors.accent.primary,
   },
-  checkboxDisabled: {
-    backgroundColor: Theme.colors.border,
-    borderColor: Theme.colors.border,
-  },
-  checkboxTextContainer: {
-    flex: 1,
-  },
   checkboxText: {
-    fontSize: 12,
+    fontSize: 14,
     color: Theme.colors.content.primary,
-    lineHeight: 18,
+    lineHeight: 20,
   },
-  disabledText: {
+  actionContainer: {
+    flexDirection: "row",
+    padding: 16,
+    gap: 12,
+  },
+  supportButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Theme.colors.content.backgroundElevated,
+    borderWidth: 1,
+    borderColor: Theme.colors.content.border,
+    borderRadius: 8,
+    paddingVertical: 14,
+  },
+  supportButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: Theme.colors.accent.primary,
+    marginLeft: 8,
+  },
+  continueButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Theme.colors.accent.primary,
+    borderRadius: 8,
+    paddingVertical: 14,
+  },
+  continueButtonDisabled: {
+    backgroundColor: Theme.colors.content.primarySecondary,
+  },
+  continueButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: Theme.colors.content.primary,
+  },
+  continueButtonTextDisabled: {
     color: Theme.colors.content.primarySecondary,
   },
-  linkText: {
-    color: Theme.colors.accent.primary,
-    textDecorationLine: "underline",
+  scrollIndicator: {
+    alignItems: "center",
+    paddingVertical: 20,
+  },
+  scrollIndicatorText: {
+    fontSize: 12,
+    color: Theme.colors.content.primarySecondary,
+    marginTop: 8,
   },
   buttonContainer: {
     flexDirection: "row",
     padding: 16,
     gap: 12,
   },
-  button: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 8,
-    alignItems: "center",
-  },
-  declineButton: {
-    backgroundColor: Theme.colors.content.backgroundElevated,
-    borderWidth: 1,
-    borderColor: Theme.colors.border,
-  },
   acceptButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: Theme.colors.accent.primary,
+    borderRadius: 8,
+    paddingVertical: 14,
   },
-  buttonDisabled: {
-    backgroundColor: Theme.colors.border,
-  },
-  declineButtonText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: Theme.colors.content.primary,
+  acceptButtonDisabled: {
+    backgroundColor: Theme.colors.content.primarySecondary,
   },
   acceptButtonText: {
     fontSize: 16,
     fontWeight: "600",
-    color: #FFFFFF,
+    color: Theme.colors.content.primary,
+    marginLeft: 8,
   },
-  buttonTextDisabled: {
-    color: Theme.colors.content.primarySecondary,
-  },
-  footer: {
+  declineButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: Theme.colors.content.backgroundElevated,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderTopWidth: 1,
-    borderTopColor: Theme.colors.border,
+    borderWidth: 1,
+    borderColor: Theme.colors.content.border,
+    borderRadius: 8,
+    paddingVertical: 14,
   },
-  footerText: {
-    fontSize: 10,
-    color: Theme.colors.content.primarySecondary,
-    textAlign: "center",
+  declineButtonText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: Theme.colors.accent.primary,
+    marginLeft: 8,
+  },
+  supportLink: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 16,
+    marginBottom: 16,
+  },
+  supportText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: Theme.colors.accent.primary,
+    marginLeft: 8,
   },
 });
 

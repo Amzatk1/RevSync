@@ -9,7 +9,9 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-import { useNavigation } from "@react-navigation/native";
+
+// Type fixes for React 18+ compatibility
+const TypedIcon = Icon as any;import { useNavigation } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
 import { useSelector, useDispatch } from "react-redux";
 
@@ -17,8 +19,8 @@ import {
   IntelligentCard,
   MomentumScrollView,
   GestureModal,
-  AwardWinningTheme,
-} from "../components/awardWinning";
+  Theme,
+} from "../components/ui";
 import { RootState } from "../store";
 
 interface Motorcycle {
@@ -39,7 +41,7 @@ interface Motorcycle {
 export const GarageScreen: React.FC = () => {
   const navigation = useNavigation();
   const dispatch = useDispatch();
-  const theme = AwardWinningTheme;
+  const theme = Theme;
   const colors = theme.colors;
   const isIOS = Platform.OS === "ios";
 
@@ -386,7 +388,7 @@ export const GarageScreen: React.FC = () => {
               alignItems: "center",
             }}
           >
-            <Icon name={stat.icon} size={24} color={stat.color} />
+            <TypedIcon name={stat.icon} size={24} color={stat.color} />
             <Text
               style={[
                 isIOS
@@ -427,7 +429,7 @@ export const GarageScreen: React.FC = () => {
         minHeight: theme.device.height * 0.5,
       }}
     >
-      <Icon name="garage-open" size={80} color={colors.content.tertiary} />
+      <TypedIcon name="garage-open" size={80} color={colors.content.tertiary} />
       <Text
         style={[
           isIOS
@@ -476,7 +478,7 @@ export const GarageScreen: React.FC = () => {
             gap: theme.spacing.sm,
           }}
         >
-          <Icon name="plus" size={20} color="#FFFFFF" />
+          <TypedIcon name="plus" size={20} color="#FFFFFF" />
           <Text
             style={[
               isIOS
@@ -555,7 +557,7 @@ export const GarageScreen: React.FC = () => {
               borderRadius: theme.spacing.base,
             }}
           >
-            <Icon name="plus" size={24} color="#FFFFFF" />
+            <TypedIcon name="plus" size={24} color="#FFFFFF" />
           </IntelligentCard>
         </View>
       </View>
@@ -773,7 +775,7 @@ export const GarageScreen: React.FC = () => {
                     gap: theme.spacing.sm,
                   }}
                 >
-                  <Icon name="flash" size={16} color="#FFFFFF" />
+                  <TypedIcon name="flash" size={16} color="#FFFFFF" />
                   <Text
                     style={[
                       isIOS
@@ -803,7 +805,7 @@ export const GarageScreen: React.FC = () => {
                     gap: theme.spacing.sm,
                   }}
                 >
-                  <Icon name="cog" size={16} color={colors.accent.primary} />
+                  <TypedIcon name="cog" size={16} color={colors.accent.primary} />
                   <Text
                     style={[
                       isIOS

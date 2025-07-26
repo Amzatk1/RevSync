@@ -1,28 +1,32 @@
 {
   "compilerOptions": {
     "target": "esnext",
-    "lib": ["dom", "esnext"],
+    "lib": ["es2019", "es2020.bigint", "esnext.asynciterable"],
     "allowJs": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "strict": false,
+    "strict": true,
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "jsx": "react-jsx",
+    "jsx": "react-native",
     "module": "esnext",
     "baseUrl": "./src",
-    "typeRoots": ["./node_modules/@types", "./types"]
+    "typeRoots": ["./node_modules/@types", "./types"],
+    "types": ["react-native"]
   },
   "include": [
     "src/**/*",
-    "types/**/*",
-    "index.js"
+    "index.js",
+    "types/**/*"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    ".expo",
+    "babel.config.js",
+    "metro.config.js"
   ]
 }

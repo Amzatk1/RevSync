@@ -6,15 +6,31 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
-  Switch,
   Platform,
+  SafeAreaView,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Theme } from '../../styles/theme';
 
 // Type fixes for React 18+ compatibility
 const TypedIcon = Icon as any;
+
+// Custom Switch component to replace react-native Switch
+const CustomSwitch = ({ value, onValueChange, trackColor }: { 
+  value: boolean; 
+  onValueChange: (value: boolean) => void; 
+  trackColor?: any; 
+}) => (
+  <TouchableOpacity
+    style={[
+      styles.customSwitch,
+      { backgroundColor: value ? trackColor?.true || '#007AFF' : trackColor?.false || '#E5E5EA' }
+    ]}
+    onPress={() => onValueChange(!value)}
+  >
+    <View style={[styles.switchThumb, value && styles.switchThumbActive]} />
+  </TouchableOpacity>
+);
 
 interface SecuritySettingsProps {
   navigation: any;
@@ -157,9 +173,9 @@ const SecuritySettings: React.FC<SecuritySettingsProps> = ({ navigation }) => {
                 : "Add extra security to your account"
               }
               rightComponent={
-                <Switch
+                <CustomSwitch
                   value={securitySettings.twoFactorEnabled}
-                  onValueChange={(value) => {
+                  onValueChange={(value: boolean) => {
                     if (value) {
                       handleSetupTwoFactor();
                     } else {
@@ -170,7 +186,6 @@ const SecuritySettings: React.FC<SecuritySettingsProps> = ({ navigation }) => {
                     false: Theme.colors.content.backgroundSubtle,
                     true: Theme.colors.accent.primary,
                   }}
-                  thumbColor={Platform.OS === 'ios' ? undefined : '#FFFFFF'}
                 />
               }
             />
@@ -204,14 +219,13 @@ const SecuritySettings: React.FC<SecuritySettingsProps> = ({ navigation }) => {
                 : "Use fingerprint or face unlock to sign in"
               }
               rightComponent={
-                <Switch
+                <CustomSwitch
                   value={securitySettings.biometricLogin}
-                  onValueChange={(value) => updateSetting('biometricLogin', value)}
+                  onValueChange={(value: boolean) => updateSetting('biometricLogin', value)}
                   trackColor={{
                     false: Theme.colors.content.backgroundSubtle,
                     true: Theme.colors.accent.primary,
                   }}
-                  thumbColor={Platform.OS === 'ios' ? undefined : '#FFFFFF'}
                 />
               }
             />
@@ -244,14 +258,13 @@ const SecuritySettings: React.FC<SecuritySettingsProps> = ({ navigation }) => {
               title="Login Alerts"
               description="Get notified of new sign-ins"
               rightComponent={
-                <Switch
+                <CustomSwitch
                   value={securitySettings.loginAlerts}
-                  onValueChange={(value) => updateSetting('loginAlerts', value)}
+                  onValueChange={(value: boolean) => updateSetting('loginAlerts', value)}
                   trackColor={{
                     false: Theme.colors.content.backgroundSubtle,
                     true: Theme.colors.accent.primary,
                   }}
-                  thumbColor={Platform.OS === 'ios' ? undefined : '#FFFFFF'}
                 />
               }
             />
@@ -405,6 +418,25 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: Theme.colors.content.divider,
     marginLeft: 68,
+  },
+  customSwitch: {
+    width: 50,
+    height: 30,
+    borderRadius: 15,
+    padding: 2,
+    justifyContent: 'center',
+  },
+  switchThumb: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#FFFFFF',
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
+  },
+  switchThumbActive: {
+    alignSelf: 'flex-end',
   },
 });
 

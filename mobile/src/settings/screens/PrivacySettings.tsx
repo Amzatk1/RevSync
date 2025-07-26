@@ -6,15 +6,32 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
-  Switch,
   Platform,
+  SafeAreaView,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Theme } from '../../styles/theme';
+import { Switch } from 'react-native-gesture-handler';
 
 // Type fixes for React 18+ compatibility
 const TypedIcon = Icon as any;
+
+// Custom Switch component to replace react-native Switch
+const CustomSwitch = ({ value, onValueChange, trackColor }: { 
+  value: boolean; 
+  onValueChange: (value: boolean) => void; 
+  trackColor?: any; 
+}) => (
+  <TouchableOpacity
+    style={[
+      styles.customSwitch,
+      { backgroundColor: value ? trackColor?.true || '#007AFF' : trackColor?.false || '#E5E5EA' }
+    ]}
+    onPress={() => onValueChange(!value)}
+  >
+    <View style={[styles.switchThumb, value && styles.switchThumbActive]} />
+  </TouchableOpacity>
+);
 
 interface PrivacySettingsProps {
   navigation: any;
@@ -142,14 +159,13 @@ const PrivacySettings: React.FC<PrivacySettingsProps> = ({ navigation }) => {
               title="Data Collection"
               description="Allow RevSync to collect usage data to improve the app"
               rightComponent={
-                <Switch
+                <CustomSwitch
                   value={privacySettings.dataCollection}
-                  onValueChange={(value) => updateSetting('dataCollection', value)}
+                  onValueChange={(value: boolean) => updateSetting('dataCollection', value)}
                   trackColor={{
                     false: Theme.colors.content.backgroundSubtle,
                     true: Theme.colors.accent.primary,
                   }}
-                  thumbColor={Platform.OS === 'ios' ? undefined : '#FFFFFF'}
                 />
               }
             />
@@ -160,7 +176,7 @@ const PrivacySettings: React.FC<PrivacySettingsProps> = ({ navigation }) => {
               rightComponent={
                 <Switch
                   value={privacySettings.usageAnalytics}
-                  onValueChange={(value) => updateSetting('usageAnalytics', value)}
+                  onValueChange={(value: boolean) => updateSetting('usageAnalytics', value)}
                   trackColor={{
                     false: Theme.colors.content.backgroundSubtle,
                     true: Theme.colors.accent.primary,
@@ -176,7 +192,7 @@ const PrivacySettings: React.FC<PrivacySettingsProps> = ({ navigation }) => {
               rightComponent={
                 <Switch
                   value={privacySettings.crashReporting}
-                  onValueChange={(value) => updateSetting('crashReporting', value)}
+                  onValueChange={(value: boolean) => updateSetting('crashReporting', value)}
                   trackColor={{
                     false: Theme.colors.content.backgroundSubtle,
                     true: Theme.colors.accent.primary,
@@ -201,14 +217,13 @@ const PrivacySettings: React.FC<PrivacySettingsProps> = ({ navigation }) => {
               title="Location Tracking"
               description="Use your location for regional tune recommendations"
               rightComponent={
-                <Switch
+                <CustomSwitch
                   value={privacySettings.locationTracking}
-                  onValueChange={(value) => updateSetting('locationTracking', value)}
+                  onValueChange={(value: boolean) => updateSetting('locationTracking', value)}
                   trackColor={{
                     false: Theme.colors.content.backgroundSubtle,
                     true: Theme.colors.accent.primary,
                   }}
-                  thumbColor={Platform.OS === 'ios' ? undefined : '#FFFFFF'}
                 />
               }
             />
@@ -219,7 +234,7 @@ const PrivacySettings: React.FC<PrivacySettingsProps> = ({ navigation }) => {
               rightComponent={
                 <Switch
                   value={privacySettings.personalizedAds}
-                  onValueChange={(value) => updateSetting('personalizedAds', value)}
+                  onValueChange={(value: boolean) => updateSetting('personalizedAds', value)}
                   trackColor={{
                     false: Theme.colors.content.backgroundSubtle,
                     true: Theme.colors.accent.primary,
@@ -252,14 +267,13 @@ const PrivacySettings: React.FC<PrivacySettingsProps> = ({ navigation }) => {
               title="Search Engine Indexing"
               description="Allow search engines to index your public profile"
               rightComponent={
-                <Switch
+                <CustomSwitch
                   value={privacySettings.searchEngineIndexing}
-                  onValueChange={(value) => updateSetting('searchEngineIndexing', value)}
+                  onValueChange={(value: boolean) => updateSetting('searchEngineIndexing', value)}
                   trackColor={{
                     false: Theme.colors.content.backgroundSubtle,
                     true: Theme.colors.accent.primary,
                   }}
-                  thumbColor={Platform.OS === 'ios' ? undefined : '#FFFFFF'}
                 />
               }
               isLast
@@ -276,14 +290,13 @@ const PrivacySettings: React.FC<PrivacySettingsProps> = ({ navigation }) => {
               title="Marketing Emails"
               description="Receive emails about new features and updates"
               rightComponent={
-                <Switch
+                <CustomSwitch
                   value={privacySettings.marketingEmails}
-                  onValueChange={(value) => updateSetting('marketingEmails', value)}
+                  onValueChange={(value: boolean) => updateSetting('marketingEmails', value)}
                   trackColor={{
                     false: Theme.colors.content.backgroundSubtle,
                     true: Theme.colors.accent.primary,
                   }}
-                  thumbColor={Platform.OS === 'ios' ? undefined : '#FFFFFF'}
                 />
               }
             />
@@ -292,14 +305,13 @@ const PrivacySettings: React.FC<PrivacySettingsProps> = ({ navigation }) => {
               title="Cookie Consent"
               description="Allow cookies for website functionality"
               rightComponent={
-                <Switch
+                <CustomSwitch
                   value={privacySettings.cookieConsent}
-                  onValueChange={(value) => updateSetting('cookieConsent', value)}
+                  onValueChange={(value: boolean) => updateSetting('cookieConsent', value)}
                   trackColor={{
                     false: Theme.colors.content.backgroundSubtle,
                     true: Theme.colors.accent.primary,
                   }}
-                  thumbColor={Platform.OS === 'ios' ? undefined : '#FFFFFF'}
                 />
               }
               isLast
@@ -492,6 +504,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Theme.colors.content.secondary,
     lineHeight: 20,
+  },
+  customSwitch: {
+    width: 50,
+    height: 30,
+    borderRadius: 15,
+    padding: 2,
+    justifyContent: 'center',
+  },
+  switchThumb: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: '#FFFFFF',
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
+  },
+  switchThumbActive: {
+    alignSelf: 'flex-end',
   },
 });
 

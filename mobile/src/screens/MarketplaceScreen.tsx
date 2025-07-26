@@ -8,17 +8,13 @@ import {
   SafeAreaView,
   TextInput,
   ScrollView,
-  RefreshControl,
-  Animated,
   Alert,
   ActivityIndicator,
   Image,
 } from "react-native";
 import { useSelector, useDispatch } from "react-redux";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-
-// Type fixes for React 18+ compatibility
-const TypedIcon = Icon as any;import LinearGradient from "react-native-linear-gradient";
+import LinearGradient from "react-native-linear-gradient";
 
 // Type fixes for React 18+ compatibility
 const TypedIcon = Icon as any;
@@ -37,6 +33,7 @@ import { PerformanceTracker, logError } from "../config/monitoring";
 // import FreeReviewManager from "../components/ReviewPrompt"; // Temporarily commented out
 import FreeRecommendationService from "../services/freeRecommendationService";
 import AIService, { AIRecommendation } from "../services/aiService";
+// import { Animated } from "react-native"; // Not available in this RN version
 
 interface MarketplaceScreenProps {
   navigation: any;
@@ -57,7 +54,7 @@ const MarketplaceScreen: React.FC<MarketplaceScreenProps> = ({
   const [selectedCategory, setSelectedCategory] = useState("ALL");
   const [filteredTunes, setFilteredTunes] = useState<TuneListItem[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+  // const fadeAnim = React.useRef(new Animated.Value(0)).current; // Animated not available
 
   // 🤖 AI-powered recommendations
   const [aiRecommendations, setAiRecommendations] = useState<
@@ -154,13 +151,13 @@ const MarketplaceScreen: React.FC<MarketplaceScreenProps> = ({
     if (!isLoading && marketplaceTunes.length > 0) {
       PerformanceTracker.finishTransaction("marketplace_load");
 
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }).start();
+      // Animated.timing(fadeAnim, {
+      //   toValue: 1,
+      //   duration: 300,
+      //   useNativeDriver: true,
+      // }).start(); // Animated not available
     }
-  }, [marketplaceTunes, searchQuery, selectedCategory, isLoading, fadeAnim]);
+      }, [marketplaceTunes, searchQuery, selectedCategory, isLoading]); // , fadeAnim - commented out
 
   const filterTunes = () => {
     let filtered = [...marketplaceTunes];
@@ -263,7 +260,7 @@ const MarketplaceScreen: React.FC<MarketplaceScreenProps> = ({
           <Text style={styles.tuneCreator}>
             by {item.creator.username}
             {item.creator.is_verified && (
-              <Icon
+              <TypedIcon
                 name="verified"
                 size={14}
                 color={Theme.colors.accent.primary}
@@ -306,7 +303,7 @@ const MarketplaceScreen: React.FC<MarketplaceScreenProps> = ({
 
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
-            <Icon
+            <TypedIcon
               name="download"
               size={14}
               color={Theme.colors.content.primarySecondary}
@@ -326,7 +323,7 @@ const MarketplaceScreen: React.FC<MarketplaceScreenProps> = ({
     <View style={styles.header}>
       {/* Search Bar */}
       <View style={styles.searchContainer}>
-        <Icon
+        <TypedIcon
           name="search"
           size={20}
           color={Theme.colors.content.primarySecondary}
@@ -426,8 +423,8 @@ const MarketplaceScreen: React.FC<MarketplaceScreenProps> = ({
           {/* <MarketplaceListSkeleton /> */}
         </ScrollView>
       ) : (
-        // 🆓 FREE Animated content with pull-to-refresh
-        <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
+        // 🆓 FREE content with basic functionality  
+        <View style={[styles.container, { opacity: 1 }]}>
           <FlatList
             data={filteredTunes}
             renderItem={renderTuneCard}
@@ -435,16 +432,9 @@ const MarketplaceScreen: React.FC<MarketplaceScreenProps> = ({
             ListHeaderComponent={renderHeader}
             contentContainerStyle={styles.listContainer}
             showsVerticalScrollIndicator={false}
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={onRefresh}
-                colors={[Theme.colors.accent.primary]}
-                tintColor={Theme.colors.accent.primary}
-              />
-            }
+            // refreshControl not available in this RN version
           />
-        </Animated.View>
+        </View>
       )}
     </SafeAreaView>
   );
@@ -507,11 +497,11 @@ const styles = StyleSheet.create({
   featuredTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: #FFFFFF,
+    color: "#FFFFFF",
   },
   featuredSubtitle: {
     fontSize: 12,
-    color: #FFFFFF,
+    color: "#FFFFFF",
     opacity: 0.8,
   },
   filtersSection: {
@@ -539,7 +529,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   filterTextActive: {
-    color: #FFFFFF,
+    color: "#FFFFFF",
   },
   resultsHeader: {
     flexDirection: "row",

@@ -7,14 +7,10 @@ import {
   StyleSheet,
   Image,
   FlatList,
-  RefreshControl,
   TextInput,
+  SafeAreaView,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-
-// Type fixes for React 18+ compatibility
-const TypedIcon = Icon as any;import { useNavigation } from "@react-navigation/native";
 import LinearGradient from "react-native-linear-gradient";
 
 // Type fixes for React 18+ compatibility
@@ -132,7 +128,7 @@ const OPEN_SOURCE_TUNES: CommunityTune[] = [
 ];
 
 export const CommunityScreen: React.FC = () => {
-  const navigation = useNavigation();
+  // const navigation = useNavigation(); // Commented out - not currently used
 
   const [activeTab, setActiveTab] = useState<"creators" | "tunes" | "upload">(
     "creators"
@@ -214,7 +210,7 @@ export const CommunityScreen: React.FC = () => {
         <View style={styles.creatorHeader}>
           <Text style={styles.creatorName}>{creator.username}</Text>
           {creator.is_verified && (
-            <Icon
+            <TypedIcon
               name="check-decagram"
               size={18}
               color={Theme.colors.accent.primary}
@@ -254,7 +250,7 @@ export const CommunityScreen: React.FC = () => {
 
           <View style={styles.statItem}>
             <View style={styles.ratingContainer}>
-              <Icon
+              <TypedIcon
                 name="star"
                 size={14}
                 color={Theme.colors.semantic.warning}

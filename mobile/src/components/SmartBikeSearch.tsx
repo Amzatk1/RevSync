@@ -69,7 +69,7 @@ const SmartBikeSearch: React.FC<SmartBikeSearchProps> = ({
   initialQuery = "",
 }) => {
   const theme = Theme;
-  const colors = theme.colors;
+  const { colors } = theme;
   const isIOS = Platform.OS === "ios";
 
   // State management
@@ -90,7 +90,7 @@ const SmartBikeSearch: React.FC<SmartBikeSearchProps> = ({
   // Animation values
   const searchScale = useSharedValue(1);
   const suggestionsOpacity = useSharedValue(0);
-  const searchInputRef = useRef<TextInput>(null);
+  const searchInputRef = useRef<any>(null);
 
   // Debounce timer
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
@@ -320,11 +320,11 @@ const SmartBikeSearch: React.FC<SmartBikeSearchProps> = ({
         },
         displacement_cc: manualBike.engine_displacement_cc || 0,
         cylinders: 0, // Default value
-        max_power_hp: null,
-        max_torque_nm: null,
-        dry_weight_kg: null,
-        msrp_usd: null,
-        image_url: null,
+        max_power_hp: undefined,
+        max_torque_nm: undefined,
+        dry_weight_kg: undefined,
+        msrp_usd: undefined,
+        image_url: undefined,
       };
 
       onBikeSelected(bikeForOnboarding);

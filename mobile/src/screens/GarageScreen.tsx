@@ -6,21 +6,16 @@ import {
   TouchableOpacity,
   Image,
   Platform,
+  SafeAreaView,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-
-// Type fixes for React 18+ compatibility
-const TypedIcon = Icon as any;import { useNavigation } from "@react-navigation/native";
 import * as Haptics from "expo-haptics";
 import { useSelector, useDispatch } from "react-redux";
 
-import {
-  IntelligentCard,
-  MomentumScrollView,
-  GestureModal,
-  Theme,
-} from "../components/ui";
+// Type fixes for React 18+ compatibility
+const TypedIcon = Icon as any;
+
+import { Theme } from "../styles/theme";
 import { RootState } from "../store";
 
 interface Motorcycle {
@@ -224,7 +219,7 @@ export const GarageScreen: React.FC = () => {
                 backgroundColor: colors.content.backgroundElevated,
               }}
             >
-              <Icon
+              <TypedIcon
                 name="motorcycle"
                 size={theme.device.isTablet ? 40 : 32}
                 color={colors.content.tertiary}
@@ -298,7 +293,7 @@ export const GarageScreen: React.FC = () => {
                 >
                   •
                 </Text>
-                <Icon
+                <TypedIcon
                   name="battery"
                   size={14}
                   color={colors.content.tertiary}
@@ -617,7 +612,7 @@ export const GarageScreen: React.FC = () => {
                 marginBottom: 0,
               }}
             >
-              <Icon
+              <TypedIcon
                 name="plus-circle-outline"
                 size={32}
                 color={colors.accent.primary}

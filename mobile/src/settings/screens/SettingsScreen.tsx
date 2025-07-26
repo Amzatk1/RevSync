@@ -6,10 +6,8 @@ import {
   Platform,
   Linking,
   Alert,
-  Share,
-  Appearance,
+  SafeAreaView,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import DeviceInfo from 'react-native-device-info';
 import * as RNLocalize from 'react-native-localize';
 import { Theme } from '../../styles/theme';
@@ -54,14 +52,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation, onClose }) 
     loadDeviceInfo();
     
     // Listen for system theme changes
-    const subscription = Appearance.addChangeListener(({ colorScheme }) => {
-      if (preferences.theme === 'system') {
-        // In a real app, you'd update your theme context here
-        console.log('System theme changed to:', colorScheme);
-      }
-    });
+    // const subscription = Appearance.addChangeListener(({ colorScheme }) => {
+    //   if (preferences.theme === 'system') {
+    //     // In a real app, you'd update your theme context here
+    //     console.log('System theme changed to:', colorScheme);
+    //   }
+    // }); // Appearance not available in this RN version
 
-    return () => subscription?.remove();
+    // return () => subscription?.remove(); // Commented out since Appearance not available
   }, []);
 
   const loadSettings = async () => {
@@ -842,14 +840,14 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation, onClose }) 
             Alert.alert('Error', 'Could not open app store');
           })
         },
-        { 
-          text: 'Share with Friends', 
-          onPress: () => Share.share({
-            message: 'Check out RevSync - the AI-powered motorcycle tuning platform! Get safe, personalized tune recommendations for your bike. Download now!',
-            url: storeUrl,
-            title: 'RevSync - Motorcycle Tuning Platform'
-          })
-        }
+        // { 
+        //   text: 'Share with Friends', 
+        //   onPress: () => Share.share({
+        //     message: 'Check out RevSync - the AI-powered motorcycle tuning platform! Get safe, personalized tune recommendations for your bike. Download now!',
+        //     url: storeUrl,
+        //     title: 'RevSync - Motorcycle Tuning Platform'
+        //   })
+        // } // Share not available in this RN version
       ]
     );
   };

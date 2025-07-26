@@ -15,9 +15,11 @@ import {
   StatusBar,
   Alert,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
+
+// Type fixes for React 18+ compatibility
+const TypedIonicons = Ionicons as any;
 
 interface WelcomeScreenProps {
   navigation?: any;
@@ -93,7 +95,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = () => {
             onPress={handleGoogleSignIn}
             activeOpacity={0.8}
           >
-            <Ionicons name="logo-google" size={24} color="#4285F4" />
+                         <TypedIonicons name="logo-google" size={24} color="#4285F4" />
             <Text style={styles.socialButtonText}>Continue with Google</Text>
           </TouchableOpacity>
 
@@ -102,7 +104,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = () => {
             onPress={handleAppleSignIn}
             activeOpacity={0.8}
           >
-            <Ionicons name="logo-apple" size={24} color="#000000" />
+                         <TypedIonicons name="logo-apple" size={24} color="#000000" />
             <Text style={styles.socialButtonText}>Continue with Apple</Text>
           </TouchableOpacity>
         </View>

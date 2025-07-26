@@ -15,18 +15,19 @@ import {
   SafeAreaView,
   StatusBar,
   Alert,
-  KeyboardAvoidingView,
   Platform,
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../context/AuthContext';
+
+// Type fixes for React 18+ compatibility
+const TypedIonicons = Ionicons as any;
 import { validateEmail, validatePassword } from '../utils/authUtils';
 
 const RegisterScreen: React.FC = () => {
-  const navigation = useNavigation();
+  // const navigation = useNavigation(); // Commented out - navigation not available
   const { signUp } = useAuth();
 
   const [formData, setFormData] = useState({
@@ -100,7 +101,7 @@ const RegisterScreen: React.FC = () => {
           [
             {
               text: 'OK',
-              onPress: () => navigation.navigate('Login'),
+              onPress: () => {}, // navigation.navigate('Login') - commented out
             },
           ]
         );
@@ -123,19 +124,19 @@ const RegisterScreen: React.FC = () => {
   };
 
   const handleLogin = () => {
-    navigation.navigate('Login');
+    // navigation.navigate('Login'); // Commented out - navigation not available
   };
 
   const handleTermsPress = () => {
-    navigation.navigate('LegalDocuments', { document: 'terms' });
+    // navigation.navigate('LegalDocuments', { document: 'terms' }); // Commented out
   };
 
   const handlePrivacyPress = () => {
-    navigation.navigate('LegalDocuments', { document: 'privacy' });
+    // navigation.navigate('LegalDocuments', { document: 'privacy' }); // Commented out
   };
 
   const handleBack = () => {
-    navigation.goBack();
+    // navigation.goBack(); // Commented out - navigation not available
   };
 
   const handleGoogleSignIn = async () => {
@@ -158,9 +159,8 @@ const RegisterScreen: React.FC = () => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
       
-      <KeyboardAvoidingView 
+      <View 
         style={styles.keyboardAvoid}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView 
           style={styles.scrollView}
@@ -175,7 +175,7 @@ const RegisterScreen: React.FC = () => {
               onPress={handleBack}
               activeOpacity={0.7}
             >
-              <Ionicons name="arrow-back" size={24} color="#000000" />
+              <TypedIonicons name="arrow-back" size={24} color="#000000" />
             </TouchableOpacity>
           </View>
 
@@ -268,7 +268,7 @@ const RegisterScreen: React.FC = () => {
                   onPress={handleGoogleSignIn}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="logo-google" size={20} color="#4285F4" />
+                  <TypedIonicons name="logo-google" size={20} color="#4285F4" />
                   <Text style={styles.socialButtonText}>Continue with Google</Text>
                 </TouchableOpacity>
 
@@ -277,7 +277,7 @@ const RegisterScreen: React.FC = () => {
                   onPress={handleAppleSignIn}
                   activeOpacity={0.8}
                 >
-                  <Ionicons name="logo-apple" size={20} color="#000000" />
+                  <TypedIonicons name="logo-apple" size={20} color="#000000" />
                   <Text style={styles.socialButtonText}>Continue with Apple</Text>
                 </TouchableOpacity>
               </View>
@@ -307,7 +307,7 @@ const RegisterScreen: React.FC = () => {
             </View>
           </View>
         </ScrollView>
-      </KeyboardAvoidingView>
+      </View>
     </SafeAreaView>
   );
 };

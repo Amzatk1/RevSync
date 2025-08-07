@@ -316,7 +316,7 @@ export const CommunityScreen: React.FC = () => {
           />
           <Text style={styles.tuneCreatorName}>{tune.creator.username}</Text>
           {tune.creator.is_verified && (
-            <Icon
+            <TypedIcon
               name="check-decagram"
               size={12}
               color={Theme.colors.accent.primary}
@@ -326,14 +326,14 @@ export const CommunityScreen: React.FC = () => {
 
         <View style={styles.tuneFooter}>
           <View style={styles.tuneStats}>
-            <Icon
+            <TypedIcon
               name="download"
               size={14}
               color={Theme.colors.content.primarySecondary}
             />
             <Text style={styles.tuneStatText}>{tune.download_count}</Text>
 
-            <Icon
+            <TypedIcon
               name="star"
               size={14}
               color={Theme.colors.semantic.warning}
@@ -439,7 +439,7 @@ export const CommunityScreen: React.FC = () => {
         </View>
 
         <View style={styles.benefitItem}>
-          <Icon
+          <TypedIcon
             name="account-group"
             size={20}
             color={Theme.colors.semantic.info}
@@ -448,7 +448,7 @@ export const CommunityScreen: React.FC = () => {
         </View>
 
         <View style={styles.benefitItem}>
-          <Icon
+          <TypedIcon
             name="shield-check"
             size={20}
             color={Theme.colors.accent.primary}
@@ -484,7 +484,7 @@ export const CommunityScreen: React.FC = () => {
             style={[styles.tab, activeTab === tab.key && styles.activeTab]}
             onPress={() => setActiveTab(tab.key as any)}
           >
-            <Icon
+            <TypedIcon
               name={tab.icon}
               size={20}
               color={
@@ -510,7 +510,7 @@ export const CommunityScreen: React.FC = () => {
           {/* Search Bar */}
           <View style={styles.searchContainer}>
             <View style={styles.searchBar}>
-              <Icon
+              <TypedIcon
                 name="magnify"
                 size={20}
                 color={Theme.colors.content.primarySecondary}
@@ -559,9 +559,6 @@ export const CommunityScreen: React.FC = () => {
       {/* Content */}
       <ScrollView
         style={styles.content}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
         showsVerticalScrollIndicator={false}
       >
         {activeTab === "creators" && (
@@ -600,11 +597,11 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 28,
     fontWeight: "bold",
-    color: #FFFFFF,
+    color: "#FFFFFF",
   },
   headerSubtitle: {
     fontSize: 16,
-    color: #FFFFFF,
+    color: "#FFFFFF",
     opacity: 0.8,
   },
   tabContainer: {
@@ -680,7 +677,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   filterChipTextSelected: {
-    color: #FFFFFF,
+    color: "#FFFFFF",
   },
   content: {
     flex: 1,
@@ -753,7 +750,7 @@ const styles = StyleSheet.create({
   specialtyText: {
     fontSize: 10,
     fontWeight: "600",
-    color: #FFFFFF,
+    color: "#FFFFFF",
   },
   moreSpecialties: {
     fontSize: 12,
@@ -843,7 +840,7 @@ const styles = StyleSheet.create({
   badgeText: {
     fontSize: 10,
     fontWeight: "600",
-    color: #FFFFFF,
+    color: "#FFFFFF",
     marginLeft: 2,
   },
   tuneDescription: {
@@ -899,13 +896,13 @@ const styles = StyleSheet.create({
   uploadTitle: {
     fontSize: 24,
     fontWeight: "bold",
-    color: #FFFFFF,
+    color: "#FFFFFF",
     marginTop: 12,
     marginBottom: 8,
   },
   uploadSubtitle: {
     fontSize: 16,
-    color: #FFFFFF,
+    color: "#FFFFFF",
     opacity: 0.9,
     textAlign: "center",
   },
@@ -928,7 +925,7 @@ const styles = StyleSheet.create({
   stepNumberText: {
     fontSize: 16,
     fontWeight: "bold",
-    color: #FFFFFF,
+    color: "#FFFFFF",
   },
   stepContent: {
     flex: 1,
@@ -956,7 +953,7 @@ const styles = StyleSheet.create({
   startUploadText: {
     fontSize: 16,
     fontWeight: "600",
-    color: #FFFFFF,
+    color: "#FFFFFF",
     marginLeft: 8,
   },
   uploadBenefits: {

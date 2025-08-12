@@ -3,87 +3,59 @@
     "name": "RevSync",
     "slug": "revsync-motorcycle-tuning",
     "version": "1.0.0",
-    "sdkVersion": "53.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "icon": "./assets/icon.png",
     "splash": {
       "image": "./assets/splash.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FF6B35"
+      "backgroundColor": "#000000"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
-    "scheme": "revsync",
-    "platforms": ["ios", "android"],
-    "primaryColor": "#FF6B35",
-    "description": "RevSync is a motorcycle ECU tuning marketplace featuring open-source performance maps, safety validation, and community-driven content for motorcycle enthusiasts.",
-    "githubUrl": "https://github.com/yourusername/revsync",
+    "assetBundlePatterns": ["**/*"],
     "ios": {
+      "bundleIdentifier": "com.revsync.motorcycle",
       "supportsTablet": true,
-      "bundleIdentifier": "com.revsync.motorcycletuning",
-      "buildNumber": "1",
+      "buildNumber": "1.0.0",
       "infoPlist": {
-        "NSBluetoothAlwaysUsageDescription": "RevSync uses Bluetooth to connect to motorcycle ECU tuning devices for safe ECU modifications.",
-        "NSLocationWhenInUseUsageDescription": "RevSync uses location to find local motorcycle events and meetups in your area.",
-        "NSCameraUsageDescription": "RevSync uses the camera to scan VIN codes and ECU part numbers for compatibility verification.",
-        "NSPhotoLibraryUsageDescription": "RevSync accesses photos to share tuning results and motorcycle modifications with the community.",
-        "ITSAppUsesNonExemptEncryption": false,
-        "LSApplicationQueriesSchemes": ["mailto", "tel"]
-      },
-      "associatedDomains": ["applinks:revsync.app"],
-      "config": {
-        "usesNonExemptEncryption": false
+        "NSCameraUsageDescription": "This app uses the camera to scan motorcycle ECU files and QR codes for tune sharing.",
+        "NSPhotoLibraryUsageDescription": "This app accesses your photo library to save and share tune files and motorcycle photos."
       }
     },
     "android": {
-      "package": "com.revsync.motorcycletuning",
+      "package": "com.revsync.motorcycle",
       "versionCode": 1,
-      "permissions": [
-        "android.permission.INTERNET",
-        "android.permission.ACCESS_NETWORK_STATE",
-        "android.permission.BLUETOOTH",
-        "android.permission.BLUETOOTH_ADMIN",
-        "android.permission.ACCESS_FINE_LOCATION",
-        "android.permission.CAMERA",
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE"
-      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#FF6B35"
+        "backgroundColor": "#000000"
       },
-      "intentFilters": [
-        {
-          "action": "VIEW",
-          "autoVerify": true,
-          "data": [
-            {
-              "scheme": "https",
-              "host": "revsync.app"
-            }
-          ],
-          "category": ["BROWSABLE", "DEFAULT"]
-        }
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
       ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
-      "name": "RevSync Motorcycle Tuning",
-      "shortName": "RevSync",
-      "lang": "en",
-      "scope": "/",
-      "themeColor": "#FF6B35",
-      "backgroundColor": "#ffffff",
-      "display": "standalone",
-      "orientation": "portrait"
+      "bundler": "metro"
     },
-    "notification": {
-      "icon": "./assets/notification-icon.png",
-      "color": "#FF6B35",
-      "androidMode": "default",
-      "androidCollapsedTitle": "RevSync Updates"
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "jsEngine": "jsc"
+          },
+          "android": {
+            "jsEngine": "jsc"
+          }
+        }
+      ]
+    ],
+    "jsEngine": "jsc",
+    "newArchEnabled": false,
+    "scheme": "revsync",
+    "experiments": {
+      "typedRoutes": false
     },
     "updates": {
       "enabled": true,
@@ -99,4 +71,4 @@
       }
     }
   }
-} 
+}

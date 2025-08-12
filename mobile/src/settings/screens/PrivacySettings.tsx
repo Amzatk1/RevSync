@@ -9,9 +9,9 @@ import {
   Platform,
   SafeAreaView,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { Theme } from '../../styles/theme';
-import { Switch } from 'react-native-gesture-handler';
+import { Switch } from 'react-native';
 
 // Type fixes for React 18+ compatibility
 const TypedIcon = Icon as any;

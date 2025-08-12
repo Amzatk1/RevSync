@@ -9,6 +9,17 @@ export interface EnvironmentConfig {
 }
 
 const getApiBaseUrl = (): string => {
+  // Safely read env var without any writes or mutations
+  try {
+    const envUrl = (global as any)?.__EXPO_ENV__?.EXPO_PUBLIC_API_URL || 
+                   (typeof process !== 'undefined' && process.env ? process.env.EXPO_PUBLIC_API_URL : undefined);
+    if (typeof envUrl === 'string' && envUrl.trim().length > 0) {
+      return envUrl.trim();
+    }
+  } catch (error) {
+    // Silently continue if env access fails
+  }
+
   if (__DEV__) {
     if (Platform.OS === "android") {
       return "http://10.0.2.2:8000/api"; // Android emulator

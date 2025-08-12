@@ -12,7 +12,7 @@ import {
   Platform,
   Image,
 } from "react-native";
-import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, {
   useSharedValue,
@@ -23,6 +23,8 @@ import Animated, {
   FadeIn,
   FadeOut,
 } from "react-native-reanimated";
+// Workaround TS JSX typing for Animated.View
+const AView: any = Animated.View as any;
 
 // Type fixes for React 18+ compatibility
 const TypedIcon = Icon as any;
@@ -92,8 +94,32 @@ const SmartBikeSearch: React.FC<SmartBikeSearchProps> = ({
   const suggestionsOpacity = useSharedValue(0);
   const searchInputRef = useRef<any>(null);
 
+  // Track last search ID to avoid stale results overwriting newer ones
+  const searchIdRef = useRef(0);
+
+  // Utility to normalize queries (trim + collapse whitespace)
+  const normalizeQuery = (q: string) => q.replace(/\s+/g, " ").trim();
+
+  // Highlight matched parts of a suggestion (case-insensitive)
+  const renderHighlighted = (text: string, q: string) => {
+    const query = normalizeQuery(q);
+    if (!query) return <Text style={styles.suggestionText} allowFontScaling>{text}</Text>;
+    const idx = text.toLowerCase().indexOf(query.toLowerCase());
+    if (idx === -1) return <Text style={styles.suggestionText} allowFontScaling>{text}</Text>;
+    const before = text.slice(0, idx);
+    const match = text.slice(idx, idx + query.length);
+    const after = text.slice(idx + query.length);
+    return (
+      <Text style={styles.suggestionText} allowFontScaling>
+        {before}
+        <Text style={{ fontWeight: "700" }}>{match}</Text>
+        {after}
+      </Text>
+    );
+  };
+
   // Debounce timer
-  const debounceTimer = useRef<NodeJS.Timeout | null>(null);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Smart search with fuzzy matching and intelligent suggestions
   const performSmartSearch = async (searchQuery: string) => {
@@ -104,36 +130,37 @@ const SmartBikeSearch: React.FC<SmartBikeSearchProps> = ({
       return;
     }
 
+    const clean = normalizeQuery(searchQuery);
+    const thisSearchId = ++searchIdRef.current;
+
     try {
       setLoading(true);
       PerformanceTracker.startTransaction("smart_bike_search", "Searching motorcycles");
 
-      // Get search suggestions from backend
       const [searchSuggestionsResult, bikesResult] = await Promise.all([
-        motorcycleService.getSearchSuggestions(searchQuery),
+        motorcycleService.getSearchSuggestions(clean),
         motorcycleService.getMotorcycles({
-          search: searchQuery,
+          search: clean,
           ordering: "-year,-max_power_hp",
         }),
       ]);
 
-      // Create intelligent suggestions combining text suggestions and actual bikes
+      // Drop stale responses (user typed more since we sent this request)
+      if (thisSearchId !== searchIdRef.current) {
+        return;
+      }
+
       const intelligentSuggestions: SearchSuggestion[] = [];
 
-      // Add text-based suggestions for quick completion
       searchSuggestionsResult.slice(0, 3).forEach((suggestion) => {
-        intelligentSuggestions.push({
-          type: "suggestion",
-          text: suggestion,
-        });
+        intelligentSuggestions.push({ type: "suggestion", text: suggestion });
       });
 
-      // Add actual bike matches
       bikesResult.results.slice(0, 8).forEach((bike) => {
         intelligentSuggestions.push({
           type: "bike",
           text: `${bike.manufacturer.name} ${bike.model_name} (${bike.year})`,
-          bike: bike,
+          bike,
         });
       });
 
@@ -142,14 +169,17 @@ const SmartBikeSearch: React.FC<SmartBikeSearchProps> = ({
       setShowSuggestions(true);
       setSelectedIndex(-1);
 
-      // Animate suggestions in
       suggestionsOpacity.value = withTiming(1, { duration: 200 });
 
-      PerformanceTracker.trackMarketplaceEvent("smart_search_performed", {
-        query: searchQuery,
-        suggestions_count: intelligentSuggestions.length,
-        bikes_found: bikesResult.results.length,
-      });
+      if (intelligentSuggestions.length === 0) {
+        PerformanceTracker.trackMarketplaceEvent("smart_search_no_results", { query: clean });
+      } else {
+        PerformanceTracker.trackMarketplaceEvent("smart_search_performed", {
+          query: clean,
+          suggestions_count: intelligentSuggestions.length,
+          bikes_found: bikesResult.results.length,
+        });
+      }
 
       PerformanceTracker.finishTransaction("smart_bike_search");
     } catch (error) {
@@ -177,9 +207,7 @@ const SmartBikeSearch: React.FC<SmartBikeSearchProps> = ({
 
   // Handle suggestion selection
   const handleSuggestionPress = async (suggestion: SearchSuggestion) => {
-    if (isIOS) {
-      await Haptics.selectionAsync();
-    }
+    try { await Haptics.selectionAsync(); } catch {}
 
     if (suggestion.type === "bike" && suggestion.bike) {
       // Direct bike selection
@@ -203,9 +231,7 @@ const SmartBikeSearch: React.FC<SmartBikeSearchProps> = ({
 
   // Handle direct bike selection from expanded results
   const handleBikePress = async (bike: MotorcycleListItem) => {
-    if (isIOS) {
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+    try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
 
     // Scale animation for selection feedback
     searchScale.value = withSpring(1.05, theme.animations.spring.snappy, () => {
@@ -226,9 +252,7 @@ const SmartBikeSearch: React.FC<SmartBikeSearchProps> = ({
 
   // Handle skip action
   const handleSkip = async () => {
-    if (isIOS) {
-      await Haptics.selectionAsync();
-    }
+    try { await Haptics.selectionAsync(); } catch {}
 
     if (onSkip) {
       onSkip();
@@ -242,9 +266,7 @@ const SmartBikeSearch: React.FC<SmartBikeSearchProps> = ({
 
   // Clear search
   const handleClear = async () => {
-    if (isIOS) {
-      await Haptics.selectionAsync();
-    }
+    try { await Haptics.selectionAsync(); } catch {}
 
     setQuery("");
     setSuggestions([]);
@@ -255,16 +277,15 @@ const SmartBikeSearch: React.FC<SmartBikeSearchProps> = ({
 
   // Handle search submission
   const handleSearch = () => {
-    if (query.trim()) {
-      performSmartSearch(query.trim());
+    const q = normalizeQuery(query);
+    if (q) {
+      performSmartSearch(q);
     }
   };
 
   // Handle manual bike entry
   const handleManualEntry = () => {
-    if (isIOS) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     setShowManualEntry(true);
     setShowSuggestions(false);
   };
@@ -285,9 +306,7 @@ const SmartBikeSearch: React.FC<SmartBikeSearchProps> = ({
     }
 
     try {
-      if (isIOS) {
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
+      try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
 
       const manualBike: ManualBike = {
         id: `manual_${Date.now()}`,
@@ -389,7 +408,7 @@ const SmartBikeSearch: React.FC<SmartBikeSearchProps> = ({
   return (
     <View style={styles.container}>
       {/* Enhanced Search Input */}
-      <Animated.View style={[styles.searchContainer, searchInputStyle]}>
+      <AView style={[styles.searchContainer, searchInputStyle]}>
         <TypedIcon
           name="magnify"
           size={20}
@@ -419,7 +438,12 @@ const SmartBikeSearch: React.FC<SmartBikeSearchProps> = ({
           />
         )}
         {query.length > 0 && !loading && (
-          <TouchableOpacity onPress={handleClear} style={styles.clearButton}>
+          <TouchableOpacity
+            onPress={handleClear}
+            style={styles.clearButton}
+            accessibilityRole="button"
+            accessibilityLabel="Clear search"
+          >
             <TypedIcon
               name="close-circle"
               size={20}
@@ -427,11 +451,11 @@ const SmartBikeSearch: React.FC<SmartBikeSearchProps> = ({
             />
           </TouchableOpacity>
         )}
-      </Animated.View>
+      </AView>
 
       {/* Enhanced Search Results */}
       {showSuggestions && suggestions.length > 0 && (
-        <Animated.View
+        <AView
           entering={FadeIn.duration(200)}
           exiting={FadeOut.duration(150)}
           style={styles.suggestionsContainer}
@@ -453,12 +477,18 @@ const SmartBikeSearch: React.FC<SmartBikeSearchProps> = ({
                 ]}
                 onPress={() => handleSuggestionPress(suggestion)}
                 activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  suggestion.type === 'bike'
+                    ? `Select ${suggestion.bike?.manufacturer.name} ${suggestion.bike?.model_name}`
+                    : `Search for ${suggestion.text}`
+                }
               >
                 {suggestion.type === "bike" && suggestion.bike ? (
                   <View style={styles.bikeResultItem}>
                     <View style={styles.bikeImageContainer}>
                       <Image
-                        source={{ 
+                        source={{
                           uri: suggestion.bike.image_url || 'https://lh3.googleusercontent.com/aida-public/AB6AXuBm_Dypw3uBJiJI4CHSqO9L4a9nuAD6vCYyM2QF51qAS-KSC0jhAGP9yWKiw_NsYJ04AAUl0xoWDyNme-47RWES32yYcKbbenuX4y20CSaBJGVHEAgQTpYiaKig085-TJAcK1lV0g-wBIDcdAi9x9i3iLA8HTaKjBKtmeLfVopyDXf7T-eiIziFQHyKg6mS3PQuuG27zStZbu1FK35-ARjEF2dJfrCU63ZoMBh3pXOFQh6k7tDu6T2Vuxdz5QV5g3W0mszolfBZiQ'
                         }}
                         style={styles.bikeImage}
@@ -466,11 +496,12 @@ const SmartBikeSearch: React.FC<SmartBikeSearchProps> = ({
                       />
                     </View>
                     <View style={styles.bikeDetails}>
-                      <Text style={styles.bikeTitle}>
+                      <Text style={styles.bikeTitle} allowFontScaling>
                         {suggestion.bike.manufacturer.name} {suggestion.bike.model_name}
                       </Text>
-                      <Text style={styles.bikeSubtitle}>
-                        {suggestion.bike.year} • {suggestion.bike.displacement_cc}cc
+                      <Text style={styles.bikeSubtitle} allowFontScaling>
+                        {suggestion.bike.year}
+                        {typeof suggestion.bike.displacement_cc === 'number' && suggestion.bike.displacement_cc > 0 ? ` • ${suggestion.bike.displacement_cc}cc` : ''}
                       </Text>
                     </View>
                     <TypedIcon
@@ -487,32 +518,32 @@ const SmartBikeSearch: React.FC<SmartBikeSearchProps> = ({
                       color={colors.content.secondary}
                       style={styles.suggestionIcon}
                     />
-                    <Text style={styles.suggestionText}>{suggestion.text}</Text>
+                    {renderHighlighted(suggestion.text, query)}
                   </View>
                 )}
               </TouchableOpacity>
             ))}
           </ScrollView>
-        </Animated.View>
+        </AView>
       )}
 
       {/* Manual Bike Entry */}
       {showManualEntry && (
-        <Animated.View
+        <AView
           entering={FadeIn.duration(300)}
           exiting={FadeOut.duration(200)}
           style={styles.manualEntryContainer}
         >
           <View style={styles.manualEntryHeader}>
-            <Text style={styles.manualEntryTitle}>Add Your Bike Manually</Text>
-            <Text style={styles.manualEntryDescription}>
+            <Text style={styles.manualEntryTitle} allowFontScaling>Add Your Bike Manually</Text>
+            <Text style={styles.manualEntryDescription} allowFontScaling>
               Can't find your bike? Add it manually and we'll still provide great recommendations.
             </Text>
           </View>
 
           <View style={styles.manualEntryForm}>
             <View style={styles.inputRow}>
-              <Text style={styles.inputLabel}>Manufacturer *</Text>
+              <Text style={styles.inputLabel} allowFontScaling>Manufacturer *</Text>
               <TextInput
                 style={styles.manualInput}
                 placeholder="e.g., Yamaha, Honda, Ducati"
@@ -523,7 +554,7 @@ const SmartBikeSearch: React.FC<SmartBikeSearchProps> = ({
             </View>
 
             <View style={styles.inputRow}>
-              <Text style={styles.inputLabel}>Model *</Text>
+              <Text style={styles.inputLabel} allowFontScaling>Model *</Text>
               <TextInput
                 style={styles.manualInput}
                 placeholder="e.g., R1, CBR1000RR, Panigale"
@@ -534,7 +565,7 @@ const SmartBikeSearch: React.FC<SmartBikeSearchProps> = ({
             </View>
 
             <View style={styles.inputRow}>
-              <Text style={styles.inputLabel}>Year *</Text>
+              <Text style={styles.inputLabel} allowFontScaling>Year *</Text>
               <TextInput
                 style={styles.manualInput}
                 placeholder="e.g., 2023"
@@ -546,7 +577,7 @@ const SmartBikeSearch: React.FC<SmartBikeSearchProps> = ({
             </View>
 
             <View style={styles.inputRow}>
-              <Text style={styles.inputLabel}>Engine Size (CC)</Text>
+              <Text style={styles.inputLabel} allowFontScaling>Engine Size (CC)</Text>
               <TextInput
                 style={styles.manualInput}
                 placeholder="e.g., 1000 (optional)"
@@ -558,33 +589,42 @@ const SmartBikeSearch: React.FC<SmartBikeSearchProps> = ({
           </View>
 
           <View style={styles.manualEntryButtons}>
-            <TouchableOpacity 
-              style={styles.cancelButton} 
+            <TouchableOpacity
+              style={styles.cancelButton}
               onPress={handleCancelManualEntry}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel manual entry"
             >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
+              <Text style={styles.cancelButtonText} allowFontScaling>Cancel</Text>
             </TouchableOpacity>
             
-            <TouchableOpacity 
-              style={styles.saveButton} 
+            <TouchableOpacity
+              style={styles.saveButton}
               onPress={handleSaveManualBike}
+              accessibilityRole="button"
+              accessibilityLabel="Save bike"
             >
-              <Text style={styles.saveButtonText}>Save Bike</Text>
+              <Text style={styles.saveButtonText} allowFontScaling>Save Bike</Text>
             </TouchableOpacity>
           </View>
-        </Animated.View>
+        </AView>
       )}
 
       {/* Add Manual Entry Option */}
       {!showManualEntry && !showSuggestions && query.length > 0 && bikes.length === 0 && !loading && (
-        <TouchableOpacity style={styles.manualEntryTrigger} onPress={handleManualEntry}>
+        <TouchableOpacity
+          style={styles.manualEntryTrigger}
+          onPress={handleManualEntry}
+          accessibilityRole="button"
+          accessibilityLabel="Add your bike manually"
+        >
           <TypedIcon
             name="plus-circle"
             size={20}
             color={colors.accent.primary}
             style={styles.manualEntryIcon}
           />
-          <Text style={styles.manualEntryTriggerText}>
+          <Text style={styles.manualEntryTriggerText} allowFontScaling>
             Can't find your bike? Add it manually
           </Text>
         </TouchableOpacity>
@@ -592,8 +632,13 @@ const SmartBikeSearch: React.FC<SmartBikeSearchProps> = ({
 
       {/* Skip Option */}
       {showSkipOption && !showManualEntry && (
-        <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
-          <Text style={styles.skipText}>Skip - I'll add my bike later</Text>
+        <TouchableOpacity
+          style={styles.skipButton}
+          onPress={handleSkip}
+          accessibilityRole="button"
+          accessibilityLabel="Skip bike selection"
+        >
+          <Text style={styles.skipText} allowFontScaling>Skip - I'll add my bike later</Text>
           <TypedIcon
             name="arrow-right"
             size={16}
@@ -605,11 +650,11 @@ const SmartBikeSearch: React.FC<SmartBikeSearchProps> = ({
       {/* Search Tips */}
       {!showSuggestions && query.length === 0 && (
         <View style={styles.tipsContainer}>
-          <Text style={styles.tipsTitle}>💡 Search Tips:</Text>
-          <Text style={styles.tipText}>• Try "Yamaha R1" or just "R1"</Text>
-          <Text style={styles.tipText}>• Start with manufacturer: "Du" for Ducati</Text>
-          <Text style={styles.tipText}>• Include year: "2023 MT-09"</Text>
-          <Text style={styles.tipText}>• We'll find the closest matches!</Text>
+          <Text style={styles.tipsTitle} allowFontScaling>💡 Search Tips:</Text>
+          <Text style={styles.tipText} allowFontScaling>• Try "Yamaha R1" or just "R1"</Text>
+          <Text style={styles.tipText} allowFontScaling>• Start with manufacturer: "Du" for Ducati</Text>
+          <Text style={styles.tipText} allowFontScaling>• Include year: "2023 MT-09"</Text>
+          <Text style={styles.tipText} allowFontScaling>• We'll find the closest matches!</Text>
         </View>
       )}
     </View>

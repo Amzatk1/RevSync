@@ -1,6 +1,7 @@
-import { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
-import { CompositeNavigationProp, RouteProp } from "@react-navigation/native";
-import { StackNavigationProp } from "@react-navigation/stack";
+import type { BottomTabNavigationProp } from "@react-navigation/bottom-tabs";
+type RouteProp<P, T extends keyof P> = { key: string; name: T; params: P[T] };
+type StackNavigationProp<P, T extends keyof P = keyof P> = any;
+type CompositeNavigationProp<A, B> = A & B;
 
 // Bottom Tab Navigator
 export type BottomTabParamList = {

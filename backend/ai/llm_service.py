@@ -13,7 +13,10 @@ from datetime import datetime, timedelta
 
 from django.conf import settings
 from django.core.cache import cache
-from sentence_transformers import SentenceTransformer
+try:
+    from sentence_transformers import SentenceTransformer  # optional for deployment convenience
+except Exception:  # pragma: no cover - optional dependency during migrations
+    SentenceTransformer = None  # type: ignore
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -46,7 +49,11 @@ class LLMService:
     def __init__(self):
         self.ollama_host = settings.AI_SETTINGS['OLLAMA_HOST']
         self.model_name = settings.AI_SETTINGS['MISTRAL_MODEL']
-        self.embedder = SentenceTransformer(settings.AI_SETTINGS['EMBEDDING_MODEL'])
+        # Optional embedder to avoid heavy dependency during setup/migrations
+        if SentenceTransformer is not None:
+            self.embedder = SentenceTransformer(settings.AI_SETTINGS['EMBEDDING_MODEL'])
+        else:
+            self.embedder = None
         self.cache_timeout = settings.AI_SETTINGS['RECOMMENDATION_CACHE_TIMEOUT']
         self.use_fallback = settings.AI_SETTINGS['FALLBACK_TO_SIMPLE_RULES']
         
@@ -298,29 +305,41 @@ ANALYSIS:
         user_text += f"Goals: {', '.join(user_profile.goals)}. "
         user_text += f"Experience: {user_profile.experience}"
         
-        # Get user preference embedding
-        user_embedding = self.embedder.encode([user_text])[0]
-        
-        # Get tune embeddings
-        tune_texts = []
-        for tune in tunes:
-            tune_text = f"Name: {tune.get('name', '')}. "
-            tune_text += f"Description: {tune.get('description', '')}. "
-            tune_text += f"Category: {tune.get('category', '')}. "
-            tune_text += f"Motorcycle: {tune.get('motorcycle_make', '')} {tune.get('motorcycle_model', '')}"
-            tune_texts.append(tune_text)
-        
-        tune_embeddings = self.embedder.encode(tune_texts)
-        
-        # Calculate cosine similarities
-        similarities = []
-        for tune_embedding in tune_embeddings:
-            similarity = np.dot(user_embedding, tune_embedding) / (
-                np.linalg.norm(user_embedding) * np.linalg.norm(tune_embedding)
-            )
-            similarities.append(max(0, similarity))  # Ensure non-negative
-        
-        return similarities
+        if self.embedder is None:
+            # Lightweight heuristic similarity without embeddings
+            def score(text_a: str, text_b: str) -> float:
+                set_a = set(text_a.lower().split())
+                set_b = set(text_b.lower().split())
+                if not set_a or not set_b:
+                    return 0.0
+                inter = len(set_a & set_b)
+                union = len(set_a | set_b)
+                return inter / union
+            scores: list[float] = []
+            for tune in tunes:
+                tune_text = f"{tune.get('name','')} {tune.get('description','')} {tune.get('category','')} {tune.get('motorcycle_make','')} {tune.get('motorcycle_model','')}"
+                scores.append(score(user_text, tune_text))
+            return scores
+        else:
+            # Get user preference embedding
+            user_embedding = self.embedder.encode([user_text])[0]
+            # Get tune embeddings
+            tune_texts = []
+            for tune in tunes:
+                tune_text = f"Name: {tune.get('name', '')}. "
+                tune_text += f"Description: {tune.get('description', '')}. "
+                tune_text += f"Category: {tune.get('category', '')}. "
+                tune_text += f"Motorcycle: {tune.get('motorcycle_make', '')} {tune.get('motorcycle_model', '')}"
+                tune_texts.append(tune_text)
+            tune_embeddings = self.embedder.encode(tune_texts)
+            # Calculate cosine similarities
+            similarities = []
+            for tune_embedding in tune_embeddings:
+                similarity = np.dot(user_embedding, tune_embedding) / (
+                    np.linalg.norm(user_embedding) * np.linalg.norm(tune_embedding)
+                )
+                similarities.append(max(0, similarity))  # Ensure non-negative
+            return similarities
 
     async def _get_simple_collaborative_scores(self, user_profile: UserProfile, tunes: List[Dict[str, Any]]) -> Dict[int, float]:
         """Simple FREE collaborative filtering based on popularity"""

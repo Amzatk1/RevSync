@@ -5,6 +5,8 @@
  * Integrates with the Supabase AuthService and manages global auth state.
  */
 
+// cSpell:words Supabase supabase SUPABASE
+
 import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
 import AuthService from '../services/AuthService';
 import {
@@ -115,9 +117,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       try {
         dispatch({ type: 'SET_LOADING', payload: true });
         
-        // Check if Supabase is properly configured
-        const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-        const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+        // Safely check if Supabase is properly configured
+        let supabaseUrl: string | undefined;
+        let supabaseAnonKey: string | undefined;
+        
+        try {
+          supabaseUrl = (global as any)?.__EXPO_ENV__?.EXPO_PUBLIC_SUPABASE_URL || 
+                        (typeof process !== 'undefined' && process.env ? process.env.EXPO_PUBLIC_SUPABASE_URL : undefined);
+          supabaseAnonKey = (global as any)?.__EXPO_ENV__?.EXPO_PUBLIC_SUPABASE_ANON_KEY || 
+                            (typeof process !== 'undefined' && process.env ? process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY : undefined);
+        } catch (error) {
+          // Use undefined if env access fails
+        }
         
         if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.includes('YOUR_PROJECT_ID')) {
           console.error('❌ Supabase not configured!');
@@ -146,8 +157,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 type: 'LOGIN_SUCCESS',
                 payload: { user, session },
               });
+              // Persist access token for backend API usage
+              (async () => {
+                try {
+                  const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+                  await AsyncStorage.setItem('authToken', session.accessToken);
+                } catch {}
+              })();
             } else {
               dispatch({ type: 'LOGOUT' });
+              (async () => {
+                try {
+                  const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
+                  await AsyncStorage.removeItem('authToken');
+                } catch {}
+              })();
             }
           }
         );
@@ -347,20 +371,30 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const refreshSession = async (): Promise<AuthResponse<AuthSession>> => {
     try {
-      const result = await AuthService.refreshSession();
-      
-      if (result.success && result.data) {
-        dispatch({ type: 'UPDATE_SESSION', payload: result.data });
+      const session = await AuthService.refreshSession(); // assumed: AuthSession | null
+
+      if (session) {
+        dispatch({ type: 'UPDATE_SESSION', payload: session });
+        return { success: true, data: session };
       }
 
-      return result;
-    } catch (error) {
-      const authError: AuthError = {
-        code: 'SESSION_REFRESH_ERROR',
-        message: 'Failed to refresh session',
-        timestamp: new Date().toISOString(),
+      return {
+        success: false,
+        error: {
+          code: 'SESSION_REFRESH_ERROR',
+          message: 'No active session',
+          timestamp: new Date().toISOString(),
+        },
       };
-      return { success: false, error: authError };
+    } catch (error) {
+      return {
+        success: false,
+        error: {
+          code: 'SESSION_REFRESH_ERROR',
+          message: 'Failed to refresh session',
+          timestamp: new Date().toISOString(),
+        },
+      };
     }
   };
 
@@ -369,7 +403,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const checkAuthState = async (): Promise<void> => {
-    await initializeAuth();
+    try {
+      // Trigger a refresh; the auth state listener established during initialization will handle updates.
+      await AuthService.refreshSession();
+    } catch {
+      // no-op
+    }
   };
 
   const completeOnboarding = async (onboardingData: {

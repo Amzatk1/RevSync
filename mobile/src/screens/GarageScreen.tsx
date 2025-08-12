@@ -1,3 +1,4 @@
+// cSpell:words Ducati Panigale Keihin xxxs rubberband
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -7,13 +8,29 @@ import {
   Image,
   Platform,
   SafeAreaView,
+  ActivityIndicator,
 } from "react-native";
-import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import * as Haptics from "expo-haptics";
 import { useSelector, useDispatch } from "react-redux";
+// Navigation prop will be received from React Navigation instead of using useNavigation
+
+import IntelligentCard from "../components/ui/IntelligentCard";
+import { Button, SectionHeader, Badge } from "../components/ui";
+import MomentumScrollView from "../components/ui/MomentumScrollView";
+import GestureModal from "../components/ui/GestureModal";
+
+//
 
 // Type fixes for React 18+ compatibility
 const TypedIcon = Icon as any;
+
+// Supabase client (Expo public env)
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || "";
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "";
+const supabase: SupabaseClient | null =
+  SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 import { Theme } from "../styles/theme";
 import { RootState } from "../store";
@@ -31,10 +48,12 @@ interface Motorcycle {
   connection_status: "connected" | "disconnected" | "never_connected";
   battery_level?: number;
   last_connected?: string;
+  vin?: string;
+  mileage_km?: number;
 }
 
-export const GarageScreen: React.FC = () => {
-  const navigation = useNavigation();
+interface GarageScreenProps { navigation?: any }
+export const GarageScreen: React.FC<GarageScreenProps> = ({ navigation }) => {
   const dispatch = useDispatch();
   const theme = Theme;
   const colors = theme.colors;
@@ -45,6 +64,36 @@ export const GarageScreen: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [selectedBike, setSelectedBike] = useState<Motorcycle | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // navigation provided via props (avoids type issues with useNavigation in this setup)
+
+  // Locale‑aware relative time
+  const formatRelativeTime = (iso?: string) => {
+    if (!iso) return "Never";
+    const date = new Date(iso);
+    const diffMs = Date.now() - date.getTime();
+    const sec = Math.round(diffMs / 1000);
+    const min = Math.round(sec / 60);
+    const hr = Math.round(min / 60);
+    const day = Math.round(hr / 24);
+    const rtf = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+
+    if (Math.abs(sec) < 60) return rtf.format(-sec, "second");
+    if (Math.abs(min) < 60) return rtf.format(-min, "minute");
+    if (Math.abs(hr) < 24) return rtf.format(-hr, "hour");
+    return rtf.format(-day, "day");
+  };
+
+  const getBatteryIcon = (level?: number) => {
+    if (typeof level !== "number") return "battery";
+    if (level >= 90) return "battery";
+    if (level >= 80) return "battery-90";
+    if (level >= 60) return "battery-70";
+    if (level >= 40) return "battery-50";
+    if (level >= 20) return "battery-30";
+    if (level > 0) return "battery-20";
+    return "battery-outline";
+  };
 
   useEffect(() => {
     loadMotorcycles();
@@ -53,52 +102,28 @@ export const GarageScreen: React.FC = () => {
   const loadMotorcycles = async () => {
     try {
       setLoading(true);
-      // Mock data for demonstration
-      setMotorcycles([
-        {
-          id: "1",
-          make: "Yamaha",
-          model: "R6",
-          year: 2020,
-          image_url:
-            "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400",
-          ecu_type: "Bosch ME17",
-          connection_protocol: "CAN-H/L",
-          last_flash_date: "2024-01-20",
-          current_tune: "Stage 2 Performance",
-          connection_status: "connected",
-          battery_level: 85,
-          last_connected: "2024-01-22T10:30:00Z",
-        },
-        {
-          id: "2",
-          make: "Ducati",
-          model: "Panigale V4",
-          year: 2021,
-          image_url:
-            "https://images.unsplash.com/photo-1558618047-3c8c6d99c0d2?w=400",
-          ecu_type: "Bosch ME17.3",
-          connection_protocol: "CAN-H/L",
-          last_flash_date: "2024-01-15",
-          current_tune: "Stock ECU",
-          connection_status: "disconnected",
-          last_connected: "2024-01-20T15:45:00Z",
-        },
-        {
-          id: "3",
-          make: "Honda",
-          model: "CBR1000RR",
-          year: 2019,
-          image_url:
-            "https://images.unsplash.com/photo-1558618047-fc3c4b4af9e4?w=400",
-          ecu_type: "Keihin ECU",
-          connection_protocol: "4-pin OBD",
-          current_tune: "Stock ECU",
-          connection_status: "never_connected",
-        },
-      ]);
-    } catch (error) {
-      console.error("Failed to load motorcycles:", error);
+      setErrorMessage(null);
+
+      if (!supabase || !user) {
+        // If Supabase not configured or user not loaded, show empty state gracefully
+        setMotorcycles([]);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("user_motorcycles_view")
+        .select(
+          "id,make,model,year,image_url,ecu_type,connection_protocol,last_flash_date,current_tune,connection_status,battery_level,last_connected,vin,mileage_km"
+        )
+        .eq("user_id", user.id)
+        .order("last_connected", { ascending: false, nullsFirst: true });
+
+      if (error) throw error;
+
+      setMotorcycles((data as any[]) || []);
+    } catch (err: any) {
+      console.error("Failed to load motorcycles:", err);
+      setErrorMessage(err?.message || "Failed to load garage.");
       Alert.alert("Error", "Failed to load garage. Please try again.");
     } finally {
       setLoading(false);
@@ -131,27 +156,16 @@ export const GarageScreen: React.FC = () => {
     }
   };
 
-  const formatLastConnected = (dateString?: string) => {
-    if (!dateString) return "Never";
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffHours = Math.floor(
-      (now.getTime() - date.getTime()) / (1000 * 60 * 60)
-    );
-
-    if (diffHours < 1) return "Just now";
-    if (diffHours < 24) return `${diffHours}h ago`;
-    return `${Math.floor(diffHours / 24)}d ago`;
-  };
+  const formatLastConnected = (dateString?: string) => formatRelativeTime(dateString);
 
   const handleBikePress = async (bike: Motorcycle) => {
-    await Haptics.selectionAsync();
+    try { await Haptics.selectionAsync(); } catch {}
     setSelectedBike(bike);
     setModalVisible(true);
   };
 
   const handleFlashTune = async (bike: Motorcycle) => {
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
     Alert.alert(
       "🏍️ Flash Tune",
       `Ready to flash ${bike.make} ${bike.model}?\n\nThis will upload your selected tune to the ECU.`,
@@ -167,7 +181,7 @@ export const GarageScreen: React.FC = () => {
   };
 
   const handleAddBike = async () => {
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
     Alert.alert("Add Motorcycle", "Navigate to bike scanner/setup");
   };
 
@@ -177,7 +191,7 @@ export const GarageScreen: React.FC = () => {
   };
 
   const renderBikeCard = (bike: Motorcycle) => (
-    <IntelligentCard
+      <IntelligentCard
       key={bike.id}
       variant="elevated"
       bloomEnabled={true}
@@ -190,7 +204,7 @@ export const GarageScreen: React.FC = () => {
       style={{
         marginBottom: theme.spacing.content.cardOuter,
       }}
-      accessibilityLabel={`${bike.make} ${bike.model} ${bike.year}`}
+      accessibilityLabel={`${bike.make} ${bike.model} ${bike.year}. ${getConnectionStatusText(bike.connection_status)}${typeof bike.battery_level === "number" ? `, battery ${bike.battery_level}%` : ""}. Current tune: ${bike.current_tune}.`}
       accessibilityHint="Tap for details, long press to flash tune"
     >
       <View style={{ flexDirection: "row", gap: theme.spacing.base }}>
@@ -238,6 +252,7 @@ export const GarageScreen: React.FC = () => {
                 : theme.typography.material.headlineSmall,
               { color: colors.content.primary },
             ]}
+            allowFontScaling
           >
             {bike.make} {bike.model}
           </Text>
@@ -249,6 +264,7 @@ export const GarageScreen: React.FC = () => {
                 : theme.typography.material.bodyMedium,
               { color: colors.content.secondary },
             ]}
+            allowFontScaling
           >
             {bike.year} • {bike.ecu_type}
           </Text>
@@ -278,10 +294,11 @@ export const GarageScreen: React.FC = () => {
                   : theme.typography.material.labelMedium,
                 { color: getConnectionStatusColor(bike.connection_status) },
               ]}
+              allowFontScaling
             >
               {getConnectionStatusText(bike.connection_status)}
             </Text>
-            {bike.battery_level && (
+            {typeof bike.battery_level === "number" && (
               <>
                 <Text
                   style={[
@@ -290,11 +307,12 @@ export const GarageScreen: React.FC = () => {
                       : theme.typography.material.labelMedium,
                     { color: colors.content.tertiary },
                   ]}
+                  allowFontScaling
                 >
                   •
                 </Text>
                 <TypedIcon
-                  name="battery"
+                  name={getBatteryIcon(bike.battery_level)}
                   size={14}
                   color={colors.content.tertiary}
                 />
@@ -305,6 +323,7 @@ export const GarageScreen: React.FC = () => {
                       : theme.typography.material.labelMedium,
                     { color: colors.content.tertiary },
                   ]}
+                  allowFontScaling
                 >
                   {bike.battery_level}%
                 </Text>
@@ -326,9 +345,34 @@ export const GarageScreen: React.FC = () => {
                 fontWeight: "600",
               },
             ]}
+            allowFontScaling
           >
             {bike.current_tune}
           </Text>
+          <View style={{ flexDirection: "row", gap: theme.spacing.xs, marginTop: theme.spacing.xs }}>
+            <TouchableOpacity
+              onPress={() => handleFlashTune(bike)}
+              accessibilityRole="button"
+              accessibilityLabel={`Flash tune for ${bike.make} ${bike.model}`}
+              style={{ paddingVertical: 6, paddingHorizontal: 10, borderRadius: 12, backgroundColor: colors.accent.primary, flexDirection: "row", alignItems: "center", gap: 6 }}
+            >
+              <TypedIcon name="flash" size={14} color="#FFFFFF" />
+              <Text style={[isIOS ? theme.typography.ios.labelMedium : theme.typography.material.labelMedium, { color: "#FFFFFF", fontWeight: "600" }]} allowFontScaling>
+                Flash
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => Alert.alert("Diagnostics", "Opening diagnostics…")}
+              accessibilityRole="button"
+              accessibilityLabel={`Open diagnostics for ${bike.make} ${bike.model}`}
+              style={{ paddingVertical: 6, paddingHorizontal: 10, borderRadius: 12, backgroundColor: colors.content.backgroundElevated, flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderColor: colors.content.border }}
+            >
+              <TypedIcon name="stethoscope" size={14} color={colors.content.primary} />
+              <Text style={[isIOS ? theme.typography.ios.labelMedium : theme.typography.material.labelMedium, { color: colors.content.primary, fontWeight: "600" }]} allowFontScaling>
+                Diagnostics
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </IntelligentCard>
@@ -395,6 +439,7 @@ export const GarageScreen: React.FC = () => {
                   marginBottom: theme.spacing.xxxs,
                 },
               ]}
+              allowFontScaling
             >
               {stat.count}
             </Text>
@@ -405,6 +450,7 @@ export const GarageScreen: React.FC = () => {
                   : theme.typography.material.labelMedium,
                 { color: colors.content.secondary },
               ]}
+              allowFontScaling
             >
               {stat.label}
             </Text>
@@ -413,6 +459,23 @@ export const GarageScreen: React.FC = () => {
       </View>
     );
   };
+
+  const renderSkeletons = () => (
+    <View style={{ gap: theme.spacing.content.cardOuter, marginBottom: theme.spacing.content.section }}>
+      {[0, 1, 2].map((i) => (
+        <IntelligentCard key={`sk_${i}`} variant="elevated" bloomEnabled={false} style={{ marginBottom: 0 }}>
+          <View style={{ flexDirection: "row", gap: theme.spacing.base }}>
+            <View style={{ width: theme.device.isTablet ? 120 : 80, height: theme.device.isTablet ? 90 : 60, borderRadius: theme.spacing.sm, backgroundColor: colors.content.backgroundElevated }} />
+            <View style={{ flex: 1, gap: theme.spacing.xs }}>
+              <View style={{ height: 18, width: "60%", borderRadius: 6, backgroundColor: colors.content.backgroundElevated }} />
+              <View style={{ height: 14, width: "40%", borderRadius: 6, backgroundColor: colors.content.backgroundElevated }} />
+              <View style={{ height: 12, width: "30%", borderRadius: 6, backgroundColor: colors.content.backgroundElevated }} />
+            </View>
+          </View>
+        </IntelligentCard>
+      ))}
+    </View>
+  );
 
   const renderEmptyState = () => (
     <View
@@ -437,6 +500,7 @@ export const GarageScreen: React.FC = () => {
             marginBottom: theme.spacing.base,
           },
         ]}
+        allowFontScaling
       >
         Your garage is empty
       </Text>
@@ -452,6 +516,7 @@ export const GarageScreen: React.FC = () => {
             marginBottom: theme.spacing.content.section,
           },
         ]}
+        allowFontScaling
       >
         Add your first motorcycle to start tuning and tracking performance
       </Text>
@@ -484,6 +549,7 @@ export const GarageScreen: React.FC = () => {
                 fontWeight: "600",
               },
             ]}
+            allowFontScaling
           >
             Add Your First Bike
           </Text>
@@ -525,6 +591,7 @@ export const GarageScreen: React.FC = () => {
                   marginBottom: theme.spacing.xs,
                 },
               ]}
+              allowFontScaling
             >
               My Garage
             </Text>
@@ -535,6 +602,7 @@ export const GarageScreen: React.FC = () => {
                   : theme.typography.material.bodyLarge,
                 { color: colors.content.secondary },
               ]}
+              allowFontScaling
             >
               {motorcycles.length}{" "}
               {motorcycles.length === 1 ? "motorcycle" : "motorcycles"}
@@ -572,79 +640,33 @@ export const GarageScreen: React.FC = () => {
         onOverscrollTop={handleRefresh}
         showsVerticalScrollIndicator={false}
       >
+        {errorMessage && (
+          <IntelligentCard variant="minimal" bloomEnabled={false} style={{ marginBottom: theme.spacing.base, borderLeftWidth: 3, borderLeftColor: colors.semantic.error }}>
+            <Text style={[isIOS ? theme.typography.ios.bodyMedium : theme.typography.material.bodyMedium, { color: colors.semantic.error }] } allowFontScaling>
+              {errorMessage}
+            </Text>
+            <View style={{ flexDirection: "row", marginTop: theme.spacing.xs }}>
+              <TouchableOpacity onPress={loadMotorcycles} accessibilityRole="button" accessibilityLabel="Retry loading garage">
+                <Text style={[isIOS ? theme.typography.ios.labelLarge : theme.typography.material.labelLarge, { color: colors.accent.primary, fontWeight: "600" }]} allowFontScaling>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          </IntelligentCard>
+        )}
         {motorcycles.length === 0 ? (
-          renderEmptyState()
+          loading ? renderSkeletons() : renderEmptyState()
         ) : (
           <>
             {/* Quick Stats */}
             {renderStatsCards()}
 
             {/* Motorcycles Section */}
-            <Text
-              style={[
-                isIOS
-                  ? theme.typography.ios.headlineMedium
-                  : theme.typography.material.headlineMedium,
-                {
-                  color: colors.content.primary,
-                  marginBottom: theme.spacing.content.section,
-                },
-              ]}
-            >
-              Your Motorcycles
-            </Text>
+            <SectionHeader title="Your Motorcycles" />
 
             {/* Bike Cards */}
             {motorcycles.map(renderBikeCard)}
 
             {/* Add Another Bike */}
-            <IntelligentCard
-              variant="minimal"
-              bloomEnabled={true}
-              onPress={handleAddBike}
-              style={{
-                borderWidth: 2,
-                borderColor: colors.content.border,
-                borderStyle: "dashed",
-                backgroundColor: colors.content.backgroundSubtle,
-                alignItems: "center",
-                paddingVertical: theme.spacing.xl,
-                marginBottom: 0,
-              }}
-            >
-              <TypedIcon
-                name="plus-circle-outline"
-                size={32}
-                color={colors.accent.primary}
-              />
-              <Text
-                style={[
-                  isIOS
-                    ? theme.typography.ios.headlineSmall
-                    : theme.typography.material.headlineSmall,
-                  {
-                    color: colors.content.primary,
-                    marginTop: theme.spacing.base,
-                    marginBottom: theme.spacing.xs,
-                  },
-                ]}
-              >
-                Add Another Bike
-              </Text>
-              <Text
-                style={[
-                  isIOS
-                    ? theme.typography.ios.bodyMedium
-                    : theme.typography.material.bodyMedium,
-                  {
-                    color: colors.content.secondary,
-                    textAlign: "center",
-                  },
-                ]}
-              >
-                Expand your garage and track more motorcycles
-              </Text>
-            </IntelligentCard>
+            <Button title="Add Another Bike" onPress={handleAddBike} leftIcon={<TypedIcon name="plus" size={18} color="#fff" />} />
           </>
         )}
       </MomentumScrollView>
@@ -684,6 +706,7 @@ export const GarageScreen: React.FC = () => {
                         : theme.typography.material.labelLarge,
                       { color: colors.content.primary },
                     ]}
+                    allowFontScaling
                   >
                     Connection Status
                   </Text>
@@ -698,6 +721,7 @@ export const GarageScreen: React.FC = () => {
                         ),
                       },
                     ]}
+                    allowFontScaling
                   >
                     {getConnectionStatusText(selectedBike.connection_status)}
                   </Text>
@@ -711,6 +735,7 @@ export const GarageScreen: React.FC = () => {
                         : theme.typography.material.labelLarge,
                       { color: colors.content.primary },
                     ]}
+                    allowFontScaling
                   >
                     Current Tune
                   </Text>
@@ -721,6 +746,7 @@ export const GarageScreen: React.FC = () => {
                         : theme.typography.material.bodyLarge,
                       { color: colors.content.secondary },
                     ]}
+                    allowFontScaling
                   >
                     {selectedBike.current_tune}
                   </Text>
@@ -734,6 +760,7 @@ export const GarageScreen: React.FC = () => {
                         : theme.typography.material.labelLarge,
                       { color: colors.content.primary },
                     ]}
+                    allowFontScaling
                   >
                     Last Connected
                   </Text>
@@ -744,75 +771,37 @@ export const GarageScreen: React.FC = () => {
                         : theme.typography.material.bodyLarge,
                       { color: colors.content.secondary },
                     ]}
+                    allowFontScaling
                   >
-                    {formatLastConnected(selectedBike.last_connected)}
+                    {formatRelativeTime(selectedBike.last_connected)}
                   </Text>
                 </View>
               </View>
             </IntelligentCard>
 
             <View style={{ flexDirection: "row", gap: theme.spacing.base }}>
-              <IntelligentCard
-                variant="elevated"
-                bloomEnabled={true}
-                onPress={() => handleFlashTune(selectedBike)}
-                style={{
-                  flex: 1,
-                  marginBottom: 0,
-                  backgroundColor: colors.accent.primary,
-                  alignItems: "center",
-                }}
-              >
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: theme.spacing.sm,
+              <View style={{ flex: 1 }}>
+                <Button
+                  title="Flash Tune"
+                  onPress={() => handleFlashTune(selectedBike)}
+                  leftIcon={<TypedIcon name="flash" size={18} color="#FFFFFF" />}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Button
+                  title="Settings"
+                  variant="secondary"
+                  onPress={() => {
+                    if (navigation && typeof navigation.navigate === "function" && selectedBike) {
+                      try { Haptics.selectionAsync(); } catch {}
+                      navigation.navigate("MotorcycleSettings", { id: selectedBike.id });
+                    } else {
+                      Alert.alert("Settings", "Opening motorcycle settings…");
+                    }
                   }}
-                >
-                  <TypedIcon name="flash" size={16} color="#FFFFFF" />
-                  <Text
-                    style={[
-                      isIOS
-                        ? theme.typography.ios.labelLarge
-                        : theme.typography.material.labelLarge,
-                      { color: "#FFFFFF", fontWeight: "600" },
-                    ]}
-                  >
-                    Flash Tune
-                  </Text>
-                </View>
-              </IntelligentCard>
-
-              <IntelligentCard
-                variant="minimal"
-                bloomEnabled={true}
-                style={{
-                  flex: 1,
-                  marginBottom: 0,
-                  alignItems: "center",
-                }}
-              >
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: theme.spacing.sm,
-                  }}
-                >
-                  <TypedIcon name="cog" size={16} color={colors.accent.primary} />
-                  <Text
-                    style={[
-                      isIOS
-                        ? theme.typography.ios.labelLarge
-                        : theme.typography.material.labelLarge,
-                      { color: colors.accent.primary, fontWeight: "600" },
-                    ]}
-                  >
-                    Settings
-                  </Text>
-                </View>
-              </IntelligentCard>
+                  leftIcon={<TypedIcon name="cog" size={18} color={colors.content.primary} />}
+                />
+              </View>
             </View>
           </View>
         )}

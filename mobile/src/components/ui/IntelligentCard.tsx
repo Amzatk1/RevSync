@@ -54,17 +54,14 @@ export interface IntelligentCardProps {
   // Custom styling
   style?: ViewStyle;
 
-  // Accessibility
   accessibilityLabel?: string;
   accessibilityHint?: string;
   accessibilityRole?: "button" | "none";
 }
 
-const AnimatedView = Animated.createAnimatedComponent(View);
-const AnimatedTouchableOpacity =
-  Animated.createAnimatedComponent(TouchableOpacity);
-const AnimatedPanGestureHandler =
-  Animated.createAnimatedComponent(PanGestureHandler);
+const AnimatedView = Animated.View as any;
+const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity) as any;
+const AnimatedPanGestureHandler = Animated.createAnimatedComponent(PanGestureHandler) as any;
 
 export const IntelligentCard: React.FC<IntelligentCardProps> = ({
   children,
@@ -192,10 +189,10 @@ export const IntelligentCard: React.FC<IntelligentCardProps> = ({
   };
 
   // Gesture handler for swipe interactions
-  const gestureHandler = useAnimatedGestureHandler({
+  const gestureHandler = useAnimatedGestureHandler<any, { startX: number; startY: number }>({
     onStart: (_, context) => {
-      context.startX = translateX.value;
-      context.startY = translateY.value;
+      context.startX = translateX.value as number;
+      context.startY = translateY.value as number;
     },
     onActive: (event, context) => {
       if (!gestureEnabled) return;
@@ -281,7 +278,7 @@ export const IntelligentCard: React.FC<IntelligentCardProps> = ({
       overflow: "hidden",
       ...(fullWidth && { width: "100%" }),
       ...(aspectRatio && { aspectRatio }),
-      marginBottom: theme.spacing[spacing],
+      marginBottom: typeof theme.spacing[spacing] === 'number' ? (theme.spacing[spacing] as number) : theme.spacing.base,
     };
 
     switch (variant) {
@@ -380,7 +377,7 @@ export const IntelligentCard: React.FC<IntelligentCardProps> = ({
         {children}
 
         {/* Bloom effect overlay */}
-        {bloomEnabled && <Animated.View style={bloomStyle} />}
+        {bloomEnabled ? <AnimatedView style={bloomStyle as any} /> : null}
       </View>
     );
 
@@ -414,16 +411,16 @@ export const IntelligentCard: React.FC<IntelligentCardProps> = ({
   // Render with gesture support
   if (gestureEnabled && (pressable || onLongPress)) {
     return (
-      <AnimatedPanGestureHandler onGestureEvent={gestureHandler}>
+        <AnimatedPanGestureHandler onGestureEvent={gestureHandler as any}>
         <AnimatedTouchableOpacity
-          {...commonProps}
-          onPress={handlePress}
-          onPressIn={handlePressIn}
-          onPressOut={handlePressOut}
-          onLongPress={onLongPress}
-          activeOpacity={0.98}
-          accessibilityRole={accessibilityRole}
-        >
+            {...(commonProps as any)}
+            onPress={handlePress}
+            onPressIn={handlePressIn}
+            onPressOut={handlePressOut}
+            onLongPress={onLongPress}
+            activeOpacity={0.98}
+            accessibilityRole={accessibilityRole as any}
+          >
           {renderCardContent()}
         </AnimatedTouchableOpacity>
       </AnimatedPanGestureHandler>
@@ -434,13 +431,13 @@ export const IntelligentCard: React.FC<IntelligentCardProps> = ({
   if (pressable && onPress) {
     return (
       <AnimatedTouchableOpacity
-        {...commonProps}
+        {...(commonProps as any)}
         onPress={handlePress}
         onPressIn={handlePressIn}
         onPressOut={handlePressOut}
         onLongPress={onLongPress}
         activeOpacity={0.98}
-        accessibilityRole={accessibilityRole}
+        accessibilityRole={accessibilityRole as any}
       >
         {renderCardContent()}
       </AnimatedTouchableOpacity>
@@ -449,7 +446,7 @@ export const IntelligentCard: React.FC<IntelligentCardProps> = ({
 
   // Static card
   return (
-    <AnimatedView {...commonProps} accessibilityRole="none">
+    <AnimatedView {...(commonProps as any)} accessibilityRole="none">
       {renderCardContent()}
     </AnimatedView>
   );

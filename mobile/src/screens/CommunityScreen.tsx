@@ -10,14 +10,21 @@ import {
   TextInput,
   SafeAreaView,
 } from "react-native";
-import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-import LinearGradient from "react-native-linear-gradient";
+import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 // Type fixes for React 18+ compatibility
 const TypedIcon = Icon as any;
 const TypedLinearGradient = LinearGradient as any;
 
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || "";
+const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "";
+const supabase: SupabaseClient | null =
+  SUPABASE_URL && SUPABASE_ANON_KEY ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
 import { Theme } from "../styles/theme";
+import { SectionHeader, Button, Badge, EmptyState, Chip, HeaderBar } from "../components/ui";
 
 interface Creator {
   id: string;
@@ -48,84 +55,6 @@ interface CommunityTune {
   image_url?: string;
 }
 
-const FEATURED_CREATORS: Creator[] = [
-  {
-    id: "1",
-    username: "ProTunerMike",
-    avatar_url:
-      "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100",
-    is_verified: true,
-    total_downloads: 15420,
-    tune_count: 47,
-    rating_average: 4.8,
-    specialties: ["Sport Bikes", "Track Tuning", "Dyno Testing"],
-    bio: "Professional motorcycle tuner with 15+ years experience. Specializing in track-focused performance builds.",
-    joined_date: "2022-03-15",
-  },
-  {
-    id: "2",
-    username: "EcoTuneGuru",
-    avatar_url:
-      "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100",
-    is_verified: true,
-    total_downloads: 8930,
-    tune_count: 23,
-    rating_average: 4.6,
-    specialties: ["Fuel Economy", "Street Legal", "Emissions"],
-    bio: "Focused on creating efficient, street-legal tunes that maintain reliability and pass emissions.",
-    joined_date: "2023-01-20",
-  },
-  {
-    id: "3",
-    username: "RaceShop_Official",
-    avatar_url:
-      "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=100",
-    is_verified: true,
-    total_downloads: 23450,
-    tune_count: 89,
-    rating_average: 4.9,
-    specialties: ["Racing", "Custom Maps", "Data Logging"],
-    bio: "Official tuning division of Championship Racing Team. Professional race-grade calibrations.",
-    joined_date: "2021-11-08",
-  },
-];
-
-const OPEN_SOURCE_TUNES: CommunityTune[] = [
-  {
-    id: "1",
-    name: "Open R6 Street Map",
-    description:
-      "Community-developed street tune for Yamaha R6. Smooth power delivery with improved throttle response.",
-    creator: FEATURED_CREATORS[0],
-    download_count: 2340,
-    rating_average: 4.3,
-    review_count: 89,
-    tags: ["Open Source", "Street", "Community"],
-    is_free: true,
-    is_open_source: true,
-    compatibility: ["Yamaha R6 2017-2020"],
-    last_updated: "2024-01-15",
-    image_url:
-      "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400",
-  },
-  {
-    id: "2",
-    name: "Universal Eco Tune",
-    description:
-      "Base map focusing on fuel efficiency while maintaining performance. Fork and customize for your bike.",
-    creator: FEATURED_CREATORS[1],
-    download_count: 1870,
-    rating_average: 4.1,
-    review_count: 67,
-    tags: ["Open Source", "Eco", "Base Map"],
-    is_free: true,
-    is_open_source: true,
-    compatibility: ["Multiple Makes"],
-    last_updated: "2024-01-10",
-    image_url:
-      "https://images.unsplash.com/photo-1558618047-3c8c6d99c0d2?w=400",
-  },
-];
 
 export const CommunityScreen: React.FC = () => {
   // const navigation = useNavigation(); // Commented out - not currently used
@@ -135,10 +64,20 @@ export const CommunityScreen: React.FC = () => {
   );
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
-  const [creators, setCreators] = useState<Creator[]>(FEATURED_CREATORS);
-  const [communityTunes, setCommunityTunes] =
-    useState<CommunityTune[]>(OPEN_SOURCE_TUNES);
+  const [creators, setCreators] = useState<Creator[]>([]);
+  const [communityTunes, setCommunityTunes] = useState<CommunityTune[]>([]);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingCreators, setLoadingCreators] = useState(true);
+  const [loadingTunes, setLoadingTunes] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [pageCreators, setPageCreators] = useState(0);
+  const [pageTunes, setPageTunes] = useState(0);
+  const PAGE_SIZE = 10;
+  const [debouncedQuery, setDebouncedQuery] = useState(searchQuery);
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 300);
+    return () => clearTimeout(id);
+  }, [searchQuery]);
 
   const filterOptions = [
     "Open Source",
@@ -149,23 +88,8 @@ export const CommunityScreen: React.FC = () => {
     "Track",
   ];
 
-  useEffect(() => {
-    loadCommunityData();
-  }, []);
-
-  const loadCommunityData = async () => {
-    try {
-      // Load community data from API
-      // For now using mock data
-    } catch (error) {
-      console.error("Failed to load community data:", error);
-    }
-  };
-
-  const onRefresh = () => {
-    setRefreshing(true);
-    loadCommunityData().finally(() => setRefreshing(false));
-  };
+  const saveTune = async (t: CommunityTune) => { if (!supabase) return; try { await supabase.from("saved_tunes").insert({ tune_id: t.id }); } catch (e) { console.log(e); } };
+  const followCreator = async (c: Creator) => { if (!supabase) return; try { await supabase.from("follows").insert({ creator_id: c.id }); } catch (e) { console.log(e); } };
 
   const handleCreatorPress = (creator: Creator) => {
     // navigation.navigate('CreatorProfile', { creatorId: creator.id });
@@ -192,6 +116,62 @@ export const CommunityScreen: React.FC = () => {
       year: "numeric",
     })}`;
   };
+
+  const fetchCreators = async (reset = false) => {
+    if (!supabase) { setError("Supabase not configured"); setLoadingCreators(false); return; }
+    try {
+      setLoadingCreators(true);
+      const next = reset ? 0 : pageCreators;
+      let q = supabase.from("creators_view")
+        .select("id,username,avatar_url,is_verified,total_downloads,tune_count,rating_average,specialties,bio,joined_date")
+        .order("total_downloads", { ascending: false })
+        .range(next * PAGE_SIZE, next * PAGE_SIZE + PAGE_SIZE - 1);
+      if (debouncedQuery) q = q.ilike("username", `%${debouncedQuery}%`);
+      if (selectedFilters.includes("Verified Creator")) q = q.eq("is_verified", true);
+      if (selectedFilters.includes("Sport Bikes")) q = q.contains("specialties", ["Sport"]);
+      if (selectedFilters.includes("Eco")) q = q.or("specialties.cs.{Eco},specialties.cs.{Emissions}");
+      const { data, error: e } = await q;
+      if (e) throw e;
+      setCreators(prev => reset ? (data || []) : [...prev, ...(data || [])]);
+      setPageCreators(reset ? 1 : next + 1);
+    } catch (e: any) {
+      console.error(e); setError(e.message || "Failed to load creators");
+    } finally { setLoadingCreators(false); }
+  };
+
+  const fetchTunes = async (reset = false) => {
+    if (!supabase) { setError("Supabase not configured"); setLoadingTunes(false); return; }
+    try {
+      setLoadingTunes(true);
+      const next = reset ? 0 : pageTunes;
+      let q = supabase.from("community_tunes_view")
+        .select(`id,name,description,download_count,rating_average,review_count,tags,is_free,is_open_source,compatibility,last_updated,image_url,creator:creator_id ( id,username,avatar_url,is_verified,tune_count,total_downloads,rating_average,specialties,bio,joined_date )`)
+        .eq("is_open_source", true)
+        .order("download_count", { ascending: false })
+        .range(next * PAGE_SIZE, next * PAGE_SIZE + PAGE_SIZE - 1);
+      if (debouncedQuery) q = q.or(`name.ilike.%${debouncedQuery}%,description.ilike.%${debouncedQuery}%`);
+      if (selectedFilters.includes("Free")) q = q.eq("is_free", true);
+      if (selectedFilters.includes("Track")) q = q.contains("tags", ["Track"]);
+      if (selectedFilters.includes("Open Source")) q = q.eq("is_open_source", true);
+      const { data, error: e } = await q;
+      if (e) throw e;
+      setCommunityTunes(prev => reset ? ((data as any[]) || []) : [...prev, ...((data as any[]) || [])]);
+      setPageTunes(reset ? 1 : next + 1);
+    } catch (e: any) {
+      console.error(e); setError(e.message || "Failed to load tunes");
+    } finally { setLoadingTunes(false); }
+  };
+
+  const loadCommunityData = async () => {
+    setError(null);
+    await Promise.all([fetchCreators(true), fetchTunes(true)]);
+  };
+
+  useEffect(() => { loadCommunityData(); }, []);
+  useEffect(() => {
+    if (activeTab === "creators") fetchCreators(true);
+    if (activeTab === "tunes") fetchTunes(true);
+  }, [debouncedQuery, selectedFilters, activeTab]);
 
   const renderCreatorCard = (creator: Creator) => (
     <TouchableOpacity
@@ -224,9 +204,7 @@ export const CommunityScreen: React.FC = () => {
 
         <View style={styles.creatorSpecialties}>
           {creator.specialties.slice(0, 2).map((specialty, index) => (
-            <View key={index} style={styles.specialtyChip}>
-              <Text style={styles.specialtyText}>{specialty}</Text>
-            </View>
+            <Badge key={index} label={specialty} color={Theme.colors.accent.primary} />
           ))}
           {creator.specialties.length > 2 && (
             <Text style={styles.moreSpecialties}>
@@ -266,6 +244,20 @@ export const CommunityScreen: React.FC = () => {
         <Text style={styles.joinDate}>
           {formatJoinDate(creator.joined_date)}
         </Text>
+        {/* Follow chip */}
+        <TouchableOpacity
+          style={{
+            marginTop: 8,
+            alignSelf: "flex-start",
+            backgroundColor: Theme.colors.accent.primary,
+            borderRadius: 16,
+            paddingHorizontal: 14,
+            paddingVertical: 6,
+          }}
+          onPress={() => followCreator(creator)}
+        >
+          <Text style={{ color: "#fff", fontWeight: "600", fontSize: 13 }}>Follow</Text>
+        </TouchableOpacity>
       </View>
     </TouchableOpacity>
   );
@@ -275,6 +267,7 @@ export const CommunityScreen: React.FC = () => {
       key={tune.id}
       style={styles.tuneCard}
       onPress={() => handleTunePress(tune)}
+      activeOpacity={0.85}
     >
       <Image
         source={{ uri: tune.image_url || "https://via.placeholder.com/100x80" }}
@@ -289,15 +282,10 @@ export const CommunityScreen: React.FC = () => {
 
           <View style={styles.tuneBadges}>
             {tune.is_open_source && (
-              <View style={[styles.badge, styles.openSourceBadge]}>
-                <TypedIcon name="code-tags" size={10} color={"#FFFFFF"} />
-                <Text style={styles.badgeText}>Open</Text>
-              </View>
+              <Badge label="Open" color={Theme.colors.semantic.info} />
             )}
             {tune.is_free && (
-              <View style={[styles.badge, styles.freeBadge]}>
-                <Text style={styles.badgeText}>Free</Text>
-              </View>
+              <Badge label="Free" color={Theme.colors.semantic.success} />
             )}
           </View>
         </View>
@@ -347,6 +335,34 @@ export const CommunityScreen: React.FC = () => {
           <Text style={styles.tuneUpdated}>
             Updated {new Date(tune.last_updated).toLocaleDateString()}
           </Text>
+        </View>
+        {/* Chips for View and Save */}
+        <View style={{ flexDirection: "row", marginTop: 8 }}>
+          <TouchableOpacity
+            style={{
+              backgroundColor: Theme.colors.accent.primary,
+              borderRadius: 16,
+              paddingHorizontal: 14,
+              paddingVertical: 6,
+              marginRight: 10,
+            }}
+            onPress={() => handleTunePress(tune)}
+          >
+            <Text style={{ color: "#fff", fontWeight: "600", fontSize: 13 }}>View</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{
+              backgroundColor: Theme.colors.content.backgroundElevated,
+              borderRadius: 16,
+              paddingHorizontal: 14,
+              paddingVertical: 6,
+              borderWidth: 1,
+              borderColor: Theme.colors.accent.primary,
+            }}
+            onPress={() => saveTune(tune)}
+          >
+            <Text style={{ color: Theme.colors.accent.primary, fontWeight: "600", fontSize: 13 }}>Save</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </TouchableOpacity>
@@ -462,15 +478,7 @@ export const CommunityScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
-      <TypedLinearGradient
-        colors={[Theme.colors.accent.primary, Theme.colors.accent.primaryDark]}
-        style={styles.header}
-      >
-        <Text style={styles.headerTitle}>Community</Text>
-        <Text style={styles.headerSubtitle}>
-          Creators, tunes & collaboration
-        </Text>
-      </TypedLinearGradient>
+      <HeaderBar title="Community" subtitle={debouncedQuery || selectedFilters.length ? "Personalized community results" : "Creators, tunes & collaboration"} />
 
       {/* Tab Navigation */}
       <View style={styles.tabContainer}>
@@ -532,26 +540,14 @@ export const CommunityScreen: React.FC = () => {
             style={styles.filtersContainer}
             contentContainerStyle={styles.filtersContent}
           >
-            {filterOptions.map((filter) => (
-              <TouchableOpacity
-                key={filter}
-                style={[
-                  styles.filterChip,
-                  selectedFilters.includes(filter) && styles.filterChipSelected,
-                ]}
-                onPress={() => toggleFilter(filter)}
-              >
-                <Text
-                  style={[
-                    styles.filterChipText,
-                    selectedFilters.includes(filter) &&
-                      styles.filterChipTextSelected,
-                  ]}
-                >
-                  {filter}
-                </Text>
-              </TouchableOpacity>
-            ))}
+          {filterOptions.map((filter) => (
+            <Chip
+              key={filter}
+              label={filter}
+              selected={selectedFilters.includes(filter)}
+              onPress={() => toggleFilter(filter)}
+            />
+          ))}
           </ScrollView>
         </>
       )}
@@ -563,19 +559,19 @@ export const CommunityScreen: React.FC = () => {
       >
         {activeTab === "creators" && (
           <View style={styles.creatorsSection}>
-            <Text style={styles.sectionTitle}>Featured Creators</Text>
-            {creators.map(renderCreatorCard)}
+            <SectionHeader title="Featured Creators" />
+            {creators.length === 0 ? (
+              <EmptyState icon="account-group-outline" title="No creators yet" subtitle="Try adjusting filters or search" />
+            ) : creators.map(renderCreatorCard)}
           </View>
         )}
 
         {activeTab === "tunes" && (
           <View style={styles.tunesSection}>
-            <Text style={styles.sectionTitle}>Open Source Tunes</Text>
-            <Text style={styles.sectionSubtitle}>
-              Community-developed tunes you can download, modify, and
-              redistribute
-            </Text>
-            {communityTunes.map(renderTuneCard)}
+            <SectionHeader title="Open Source Tunes" subtitle="Community-developed tunes you can download, modify, and redistribute" />
+            {communityTunes.length === 0 ? (
+              <EmptyState icon="code-tags" title="No tunes found" subtitle="Try adjusting filters or search" />
+            ) : communityTunes.map(renderTuneCard)}
           </View>
         )}
 
@@ -665,7 +661,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     marginRight: 8,
     borderWidth: 1,
-    borderColor: Theme.colors.border,
+    borderColor: Theme.colors.content.border,
   },
   filterChipSelected: {
     backgroundColor: Theme.colors.accent.primary,
@@ -695,7 +691,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   creatorsSection: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
   },
   creatorCard: {
     backgroundColor: Theme.colors.content.backgroundElevated,
@@ -784,7 +780,7 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
   },
   tunesSection: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 16,
   },
   tuneCard: {
     backgroundColor: Theme.colors.content.backgroundElevated,

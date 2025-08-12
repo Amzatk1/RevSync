@@ -1,5 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import apiClient from "./api";
+// Types for API can be generated via OpenAPI. We currently rely on a global API namespace (schema.d.ts),
+// but you can run `npm run gen:api` to produce src/api/generated.d.ts and then switch imports accordingly.
 import { PerformanceTracker, logError } from "../config/monitoring";
 
 export interface OnboardingData {
@@ -350,6 +352,24 @@ class AIService {
     } catch (error) {
       console.warn("Failed to sync with backend:", error);
     }
+  }
+
+  // 🧠 Create AI-assisted tune set based on user input and known bikes
+  static async createAITuneRequest(
+    preferences: API.AITuneRequestInput["preferences"],
+    bike?: API.BikeSnapshot
+  ): Promise<{ tunes: API.AITuneItem[] }> {
+    const response = await apiClient.post<API.AITuneRequestResponse>("/ai/tune-request/", {
+      preferences,
+      bike,
+    });
+    return { tunes: response.data.tunes };
+  }
+
+  // 🧠 Fetch recent AI tune requests history
+  static async getAITuneHistory(): Promise<API.AITuneHistoryResponse> {
+    const response = await apiClient.get<API.AITuneHistoryResponse>("/ai/tune-request/");
+    return response.data;
   }
 }
 

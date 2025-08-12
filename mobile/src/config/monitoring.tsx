@@ -22,24 +22,9 @@ interface PerformanceLog {
 }
 
 export const initializeMonitoring = () => {
-  // Set up global error handler (FREE)
-  if (!__DEV__) {
-    const originalConsoleError = console.error;
-    console.error = (...args) => {
-      // Log to local storage for later review
-      logErrorLocally(new Error(args.join(" ")), "console_error");
-      originalConsoleError(...args);
-    };
-
-    // Set up unhandled promise rejection handler
-    if (typeof global !== "undefined") {
-      global.onunhandledrejection = (event: any) => {
-        logErrorLocally(new Error(event.reason), "unhandled_promise");
-        console.error("Unhandled promise rejection:", event.reason);
-      };
-    }
-  }
-
+  // Set up error logging without overriding global properties (Hermes-safe)
+  // Console override can cause "property is not writable" errors on Hermes
+  
   // Initialize performance tracking
   console.log("🚀 RevSync Monitoring initialized (FREE version)");
 };

@@ -1,5 +1,6 @@
 from django.contrib import admin
 from django.urls import path, include
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 from django.conf import settings
 from django.conf.urls.static import static
 
@@ -11,6 +12,9 @@ urlpatterns = [
     path('api/bikes/', include('bikes.urls')),
     path('api/tunes/', include('tunes.urls')),
     path('api/ai/', include('ai.urls')),         # AI-powered features
+    # API schema
+    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
+    path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
     # path('api/safety/', include('safety.urls')),
     # path('api/marketplace/', include('marketplace.urls')),
     # path('api/compatibility/', include('compatibility.urls')),

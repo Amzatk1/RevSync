@@ -12,13 +12,14 @@ import {
   Platform,
 } from "react-native";
 import { useSelector, useDispatch } from "react-redux";
-import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
 // Type fixes for React 18+ compatibility
 const TypedIcon = Icon as any;
 
 import { Theme } from "../styles/theme";
+import { SectionHeader, Button, Badge, EmptyState, HeaderBar } from "../components/ui";
 import { RootState } from "../store";
 import { PerformanceTracker } from "../config/monitoring";
 
@@ -234,19 +235,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerContent}>
-          <View style={{ width: 24 }} />
-          <Text style={styles.headerTitle}>Profile</Text>
-          <TouchableOpacity 
-            onPress={handleSettingsPress} 
-            style={styles.settingsButton}
-            activeOpacity={0.7}
-          >
-            <TypedIcon name="cog" size={24} color={colors.content.primary} />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <HeaderBar title="Profile" rightIconName="cog" onRightPress={handleSettingsPress} />
 
       <ScrollView
         style={styles.content}
@@ -293,7 +282,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
         {/* Achievements Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Achievements</Text>
+          <SectionHeader title="Achievements" />
           <View style={styles.achievementsGrid}>
             {achievements.map((achievement) => (
               <TouchableOpacity
@@ -322,9 +311,11 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ navigation }) => {
 
         {/* Recent Activity Section */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Activity</Text>
+          <SectionHeader title="Recent Activity" />
           <View style={styles.activityList}>
-            {recentActivity.map((activity) => (
+            {recentActivity.length === 0 ? (
+              <EmptyState icon="history" title="No recent activity" subtitle="Your tune activity will appear here" />
+            ) : recentActivity.map((activity) => (
               <TouchableOpacity
                 key={activity.id}
                 style={styles.activityItem}
@@ -432,8 +423,8 @@ const styles = StyleSheet.create({
   statsGrid: {
     flexDirection: "row",
     paddingHorizontal: 16,
-    marginBottom: 32,
-    gap: 16,
+    marginBottom: 24,
+    gap: 12,
   },
   statCard: {
     flex: 1,

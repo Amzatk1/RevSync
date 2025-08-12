@@ -76,6 +76,7 @@ export interface MotorcycleFilters {
   price_max?: number;
   search?: string;
   ordering?: string;
+  page_size?: number;
 }
 
 class MotorcycleService {

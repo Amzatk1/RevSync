@@ -13,14 +13,17 @@ import {
   Image,
 } from "react-native";
 import { useSelector, useDispatch } from "react-redux";
-import Icon from "react-native-vector-icons/MaterialCommunityIcons";
-import LinearGradient from "react-native-linear-gradient";
+import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Haptics from "expo-haptics";
 
 // Type fixes for React 18+ compatibility
 const TypedIcon = Icon as any;
 const TypedLinearGradient = LinearGradient as any;
 
 import { Theme } from "../styles/theme";
+import { SectionHeader, Chip, HeaderBar } from "../components/ui";
+import Badge from "../components/ui/Badge";
 import { RootState } from "../store";
 import { loadMarketplaceTunes, Tune } from "../store/slices/tuneSlice";
 import { TuneListItem } from "../services/tuneService";
@@ -39,6 +42,23 @@ interface MarketplaceScreenProps {
   navigation: any;
 }
 
+const formatPrice = (amount?: number, currency: string = "USD") => {
+  if (typeof amount !== "number") return "";
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(amount);
+  } catch {
+    return `$${amount}`;
+  }
+};
+
+const getSafetyLevel = (item: any): string => {
+  try {
+    return (item?.safety_rating?.level as string) || "UNRATED";
+  } catch {
+    return "UNRATED";
+  }
+};
+
 const MarketplaceScreen: React.FC<MarketplaceScreenProps> = ({
   navigation,
 }) => {
@@ -51,6 +71,11 @@ const MarketplaceScreen: React.FC<MarketplaceScreenProps> = ({
   );
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  useEffect(() => {
+    const id = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 300);
+    return () => clearTimeout(id);
+  }, [searchQuery]);
   const [selectedCategory, setSelectedCategory] = useState("ALL");
   const [filteredTunes, setFilteredTunes] = useState<TuneListItem[]>([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -150,25 +175,23 @@ const MarketplaceScreen: React.FC<MarketplaceScreenProps> = ({
     // 🆓 Fade in animation when data loads
     if (!isLoading && marketplaceTunes.length > 0) {
       PerformanceTracker.finishTransaction("marketplace_load");
-
       // Animated.timing(fadeAnim, {
       //   toValue: 1,
       //   duration: 300,
       //   useNativeDriver: true,
       // }).start(); // Animated not available
     }
-      }, [marketplaceTunes, searchQuery, selectedCategory, isLoading]); // , fadeAnim - commented out
+  }, [marketplaceTunes, debouncedQuery, selectedCategory, isLoading]); // , fadeAnim - commented out
 
   const filterTunes = () => {
     let filtered = [...marketplaceTunes];
 
-    if (searchQuery) {
+    if (debouncedQuery) {
+      const q = debouncedQuery.toLowerCase();
       filtered = filtered.filter(
         (tune) =>
-          tune.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          tune.short_description
-            .toLowerCase()
-            .includes(searchQuery.toLowerCase())
+          tune.name.toLowerCase().includes(q) ||
+          tune.short_description.toLowerCase().includes(q)
       );
     }
 
@@ -225,10 +248,10 @@ const MarketplaceScreen: React.FC<MarketplaceScreenProps> = ({
   };
 
   const renderFeaturedCollection = ({ item }: { item: any }) => (
-    <TouchableOpacity style={styles.featuredCard}>
+    <TouchableOpacity style={styles.featuredCard} accessibilityRole="button" accessibilityLabel={`${item.title}. ${item.subtitle}`}>
       <TypedLinearGradient colors={item.gradient} style={styles.featuredGradient}>
-        <Text style={styles.featuredTitle}>{item.title}</Text>
-        <Text style={styles.featuredSubtitle}>{item.subtitle}</Text>
+        <Text style={styles.featuredTitle} allowFontScaling>{item.title}</Text>
+        <Text style={styles.featuredSubtitle} allowFontScaling>{item.subtitle}</Text>
         <TypedIcon name="arrow-forward" size={20} color={"#FFFFFF"} />
       </TypedLinearGradient>
     </TouchableOpacity>
@@ -249,15 +272,39 @@ const MarketplaceScreen: React.FC<MarketplaceScreenProps> = ({
     }
   };
 
+  const renderAIRecommendation = ({ item }: { item: AIRecommendation }) => (
+    <TouchableOpacity style={styles.featuredCard} onPress={() => {
+      try { Haptics.selectionAsync(); } catch {}
+      // Fallback: navigate or log
+      console.log("AI rec pressed", item);
+    }} accessibilityRole="button" accessibilityLabel={`Recommended: ${item?.name || "Tune"}`}>
+      <TypedLinearGradient colors={[Theme.colors.content.primary, Theme.colors.accent.primary]} style={styles.featuredGradient}>
+        <Text style={styles.featuredTitle} numberOfLines={1} allowFontScaling>
+          {item?.name || "Recommended Tune"}
+        </Text>
+        <Text style={styles.featuredSubtitle} numberOfLines={1} allowFontScaling>
+          {item?.ai_recommendation_reason || item?.description || "Personalized pick for your bike"}
+        </Text>
+        <TypedIcon name="arrow-right" size={20} color="#FFFFFF" />
+      </TypedLinearGradient>
+    </TouchableOpacity>
+  );
+
   const renderTuneCard = ({ item }: { item: TuneListItem }) => (
     <TouchableOpacity
       style={styles.tuneCard}
-      onPress={() => handleTunePress(item)}
+      onPress={() => { try { Haptics.selectionAsync(); } catch {} handleTunePress(item); }}
+      accessibilityRole="button"
+      accessibilityLabel={`Tune ${item.name}, by ${item.creator.username}${item.is_open_source ? ", free" : ""}`}
     >
+      {/* image_url optional in our types; render if present via any cast */}
+      {(item as any).image_url ? (
+        <Image source={{ uri: (item as any).image_url }} style={{ width: "100%", height: 140, borderRadius: 8, marginBottom: 10 }} resizeMode="cover" />
+      ) : null}
       <View style={styles.tuneHeader}>
         <View style={styles.tuneInfo}>
-          <Text style={styles.tuneName}>{item.name}</Text>
-          <Text style={styles.tuneCreator}>
+          <Text style={styles.tuneName} allowFontScaling>{item.name}</Text>
+          <Text style={styles.tuneCreator} allowFontScaling>
             by {item.creator.username}
             {item.creator.is_verified && (
               <TypedIcon
@@ -270,36 +317,21 @@ const MarketplaceScreen: React.FC<MarketplaceScreenProps> = ({
         </View>
         <View style={styles.tunePrice}>
           {item.is_open_source ? (
-            <Text style={styles.freeText}>FREE</Text>
+            <Text style={styles.freeText} allowFontScaling>FREE</Text>
           ) : (
-            <Text style={styles.priceText}>${item.price}</Text>
+            <Text style={styles.priceText} allowFontScaling>
+              {formatPrice(item.price as any, (item as any).currency || "USD")}
+            </Text>
           )}
         </View>
       </View>
 
-      <Text style={styles.tuneDescription} numberOfLines={2}>
+      <Text style={styles.tuneDescription} numberOfLines={2} allowFontScaling>
         {item.short_description}
       </Text>
 
       <View style={styles.tuneStats}>
-        <View
-          style={[
-            styles.safetyBadge,
-            {
-              backgroundColor:
-                getSafetyRatingColor(item.safety_rating.level) + "20",
-            },
-          ]}
-        >
-          <Text
-            style={[
-              styles.safetyText,
-              { color: getSafetyRatingColor(item.safety_rating.level) },
-            ]}
-          >
-            {item.safety_rating.level}
-          </Text>
-        </View>
+        <Badge label={getSafetyLevel(item)} color={getSafetyRatingColor(getSafetyLevel(item))} />
 
         <View style={styles.statsRow}>
           <View style={styles.statItem}>
@@ -308,11 +340,11 @@ const MarketplaceScreen: React.FC<MarketplaceScreenProps> = ({
               size={14}
               color={Theme.colors.content.primarySecondary}
             />
-            <Text style={styles.statText}>{item.download_count}</Text>
+            <Text style={styles.statText} allowFontScaling>{item.download_count}</Text>
           </View>
           <View style={styles.statItem}>
             <TypedIcon name="star" size={14} color={Theme.colors.semantic.warning} />
-            <Text style={styles.statText}>{item.average_rating}</Text>
+            <Text style={styles.statText} allowFontScaling>{item.average_rating}</Text>
           </View>
         </View>
       </View>
@@ -335,12 +367,28 @@ const MarketplaceScreen: React.FC<MarketplaceScreenProps> = ({
           value={searchQuery}
           onChangeText={setSearchQuery}
           placeholderTextColor={Theme.colors.content.primarySecondary}
+          returnKeyType="search"
+          onSubmitEditing={() => {
+            try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+            // trigger filtering immediately
+            setDebouncedQuery(searchQuery.trim());
+          }}
+          accessibilityLabel="Search tunes"
         />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity
+            onPress={() => setSearchQuery("")}
+            accessibilityRole="button"
+            accessibilityLabel="Clear search"
+          >
+            <TypedIcon name="close-circle" size={18} color={Theme.colors.content.primarySecondary} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Featured Collections */}
       <View style={styles.featuredSection}>
-        <Text style={styles.sectionTitle}>Featured</Text>
+        <SectionHeader title="Featured" />
         <FlatList
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -351,6 +399,20 @@ const MarketplaceScreen: React.FC<MarketplaceScreenProps> = ({
         />
       </View>
 
+      {showingRecommendations && aiRecommendations.length > 0 && (
+        <View style={styles.featuredSection}>
+          <SectionHeader title="For You" />
+          <FlatList
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            data={aiRecommendations}
+            keyExtractor={(it, idx) => (it?.id as string) || `${idx}`}
+            renderItem={renderAIRecommendation}
+            contentContainerStyle={styles.featuredList}
+          />
+        </View>
+      )}
+
       {/* Category Filters */}
       <View style={styles.filtersSection}>
         <ScrollView
@@ -359,36 +421,24 @@ const MarketplaceScreen: React.FC<MarketplaceScreenProps> = ({
           contentContainerStyle={styles.filtersList}
         >
           {categories.map((category) => (
-            <TouchableOpacity
+            <Chip
               key={category.key}
-              style={[
-                styles.filterChip,
-                selectedCategory === category.key && styles.filterChipActive,
-              ]}
-              onPress={() => setSelectedCategory(category.key)}
-            >
-              <Text
-                style={[
-                  styles.filterText,
-                  selectedCategory === category.key && styles.filterTextActive,
-                ]}
-              >
-                {category.label}
-              </Text>
-            </TouchableOpacity>
+              label={category.label}
+              selected={selectedCategory === category.key}
+              onPress={() => { try { Haptics.selectionAsync(); } catch {} setSelectedCategory(category.key); }}
+            />
           ))}
         </ScrollView>
       </View>
 
       {/* Results Header */}
       <View style={styles.resultsHeader}>
-        <Text style={styles.resultsCount}>
-          {filteredTunes.length} tunes found
+        <Text style={styles.resultsCount} allowFontScaling>
+          {filteredTunes.length} tunes{debouncedQuery ? ` for "${debouncedQuery}"` : ""}{selectedCategory !== "ALL" ? ` • ${selectedCategory}` : ""}
         </Text>
         {selectedMotorcycle && (
-          <Text style={styles.compatibilityText}>
-            for {selectedMotorcycle.manufacturer.name}{" "}
-            {selectedMotorcycle.model_name}
+          <Text style={styles.compatibilityText} allowFontScaling>
+            for {selectedMotorcycle.manufacturer.name} {selectedMotorcycle.model_name}
           </Text>
         )}
       </View>
@@ -414,8 +464,19 @@ const MarketplaceScreen: React.FC<MarketplaceScreenProps> = ({
     }
   };
 
+  const renderEmpty = () => (
+    <View style={{ padding: 24, alignItems: "center" }}>
+      <TypedIcon name="database-search" size={28} color={Theme.colors.content.primarySecondary} />
+      <Text style={[styles.sectionTitle, { marginTop: 8 }]} allowFontScaling>No results</Text>
+      <Text style={styles.tuneDescription} allowFontScaling>Try a different search or browse Featured and For You.</Text>
+    </View>
+  );
+
+  const ListEmptyComponent = !isLoading ? renderEmpty : undefined;
+
   return (
     <SafeAreaView style={styles.container}>
+      <HeaderBar title="Marketplace" subtitle="Discover safe, compatible tunes" />
       {isLoading && marketplaceTunes.length === 0 ? (
         // 🆓 FREE Skeleton loading for initial load
         <ScrollView style={styles.container}>
@@ -432,6 +493,17 @@ const MarketplaceScreen: React.FC<MarketplaceScreenProps> = ({
             ListHeaderComponent={renderHeader}
             contentContainerStyle={styles.listContainer}
             showsVerticalScrollIndicator={false}
+            ListEmptyComponent={ListEmptyComponent}
+            ListFooterComponent={isLoading ? (
+              <View style={{ paddingVertical: 16 }}>
+                <ActivityIndicator color={Theme.colors.accent.primary} />
+              </View>
+            ) : null}
+            onEndReachedThreshold={0.4}
+            onEndReached={() => {
+              // Optional: dispatch pagination if your slice supports it
+              // dispatch(loadMarketplaceTunes({ append: true }) as any);
+            }}
             // refreshControl not available in this RN version
           />
         </View>
@@ -509,27 +581,6 @@ const styles = StyleSheet.create({
   },
   filtersList: {
     paddingHorizontal: 16,
-  },
-  filterChip: {
-    backgroundColor: Theme.colors.content.background,
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginRight: 12,
-    borderWidth: 1,
-    borderColor: Theme.colors.content.border,
-  },
-  filterChipActive: {
-    backgroundColor: Theme.colors.accent.primary,
-    borderColor: Theme.colors.accent.primary,
-  },
-  filterText: {
-    fontSize: 14,
-    color: Theme.colors.content.primarySecondary,
-    fontWeight: "500",
-  },
-  filterTextActive: {
-    color: "#FFFFFF",
   },
   resultsHeader: {
     flexDirection: "row",

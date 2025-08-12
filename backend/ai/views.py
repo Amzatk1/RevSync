@@ -10,7 +10,8 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import UserRidingProfile, TuneAIAnalysis, AIRecommendation, UserInteractionLog
+from .models import UserRidingProfile, TuneAIAnalysis, AIRecommendation, UserInteractionLog, AITuneRequest
+from .serializers import AITuneRequestInputSerializer, AITuneRequestHistorySerializer
 from .llm_service import get_llm_service, UserProfile as LLMUserProfile
 from tunes.models import Tune
 from tunes.serializers import TuneListSerializer
@@ -339,6 +340,74 @@ class AIRecommendationsAPIView(APIView):
                 {'error': 'Failed to generate recommendations. Please try again.'}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+
+class AITuneRequestAPIView(APIView):
+    """
+    🧠 Create AI-assisted tune set based on user input and known bikes
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        """Return recent AI tune requests for the authenticated user"""
+        try:
+            qs = AITuneRequest.objects.filter(user=request.user).order_by('-created_at')[:10]
+            data = AITuneRequestHistorySerializer(qs, many=True).data
+            return Response({'results': data}, status=status.HTTP_200_OK)
+        except Exception:
+            return Response({'error': 'Failed to load history'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def post(self, request):
+        try:
+            user = request.user
+            serializer = AITuneRequestInputSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            validated = serializer.validated_data
+            prefs = validated.get('preferences', {})
+            bike = validated.get('bike')
+
+            # Ensure user profile exists
+            try:
+                profile = UserRidingProfile.objects.get(user=user)
+            except UserRidingProfile.DoesNotExist:
+                return Response({'error': 'Complete onboarding first.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Generate fresh personalized recommendations (limit 10)
+            import asyncio
+            recommendations = asyncio.run(
+                AIRecommendationsAPIView()._generate_fresh_recommendations(profile, 10, 'personalized')
+            )
+
+            # Persist request record
+            rec_ids = [rec.tune.id for rec in recommendations]
+            AITuneRequest.objects.create(
+                user=user,
+                bike_id=bike.get('id') if isinstance(bike, dict) else None,
+                bike_snapshot=bike if isinstance(bike, dict) else {},
+                preferences=prefs,
+                recommendation_ids=rec_ids,
+            )
+
+            # Serialize response
+            serialized = []
+            for rec in recommendations:
+                data = TuneListSerializer(rec.tune).data
+                data.update({
+                    'ai_match_score': rec.match_score,
+                    'ai_explanation': rec.ai_explanation,
+                    'ai_safety_assessment': rec.safety_assessment_for_user,
+                })
+                serialized.append(data)
+
+            return Response({
+                'message': 'AI tune set generated',
+                'tunes': serialized,
+                'saved': True,
+            }, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            logger.error(f"AI tune request failed for {request.user.username}: {str(e)}")
+            return Response({'error': 'Failed to create AI tune set'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     def _need_fresh_recommendations(self, user: User) -> bool:
         """Check if user needs fresh recommendations"""

@@ -1,5 +1,5 @@
-# Django Core
-Django==4.2.9
+# Django Core (align with migrations and Python 3.12)
+Django==5.2.1
 djangorestframework==3.14.0
 django-cors-headers==4.3.1
 django-filter==25.1
@@ -24,8 +24,8 @@ drf-spectacular==0.27.1
 django-debug-toolbar==4.2.0
 factory-boy==3.3.0
 
-# Security & Validation
-cryptography==41.0.8
+# Security & Validation (Python 3.12 compatible)
+cryptography==42.0.8
 pycryptodome==3.19.0
 
 # Utilities
@@ -53,13 +53,12 @@ jsonschema==4.21.1
 pydantic==2.5.3
 
 # AI & Machine Learning (LLM Integration) - 100% FREE
+# Using Ollama locally; defer heavy ML libs for dev installs on Python 3.12
 ollama==0.1.8  # FREE local Mistral 7B deployment
-sentence-transformers==2.3.1  # FREE embeddings
-transformers==4.36.2  # FREE Hugging Face models
-torch==2.1.2  # FREE PyTorch backend
-numpy==1.24.3
-scikit-learn==1.3.2
-scipy==1.11.4
+# sentence-transformers / transformers / torch can be added back on servers with supported Python wheels
+numpy==1.26.4
+scikit-learn==1.5.2
+scipy==1.13.1
 
 # Background Tasks
 django-q2==1.6.2
@@ -68,21 +67,22 @@ redis==5.0.1
 # Environment & Configuration
 python-dotenv==1.0.0 
 
-# Supabase and Authentication
-supabase==2.3.4
-gotrue==2.3.0
-postgrest-py==0.13.2
-storage3==0.7.4
-realtime==1.0.0
+# Supabase and Authentication (optional for running management commands)
+# The backend uses JWT validation via PyJWT/python-jose; these client SDKs are not required for migrations
+# and data population. Commented out to avoid Python 3.12 constraints. Re-enable as needed for runtime.
+# supabase==2.3.4
+# gotrue==2.12.4
+# postgrest-py==0.10.6
+# storage3==0.7.4
+# realtime==1.0.0
 
 # JWT and Security
 PyJWT==2.8.0
 python-jose[cryptography]==3.3.0
 
-# Social Authentication
+# Social Authentication (optional for population)
 google-auth==2.25.2
 google-auth-oauthlib==1.1.0
-apple-signin==0.1.0
 
 # OTP and SMS
 twilio==8.11.0

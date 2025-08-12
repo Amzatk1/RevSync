@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo, useCallback } from "react";
 import {
   View,
   Text,
@@ -67,11 +67,20 @@ export interface GestureModalProps {
   // Accessibility
   accessibilityLabel?: string;
   accessibilityRole?: "dialog" | "alertdialog";
+
+  // Customization hooks
+  backdropColor?: string;
+  glassTint?: "light" | "dark" | "default";
+  glassIntensity?: number;
+
+  // Accessibility
+  accessibilityHint?: string;
 }
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
-const AnimatedPanGestureHandler =
-  Animated.createAnimatedComponent(PanGestureHandler);
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable) as any;
+const AnimatedPanGestureHandler: any =
+  (Animated as any).createAnimatedComponent(PanGestureHandler as any);
+const AView: any = Animated.View as any;
 
 export const GestureModal: React.FC<GestureModalProps> = ({
   children,
@@ -94,6 +103,10 @@ export const GestureModal: React.FC<GestureModalProps> = ({
   gestureArea = "full",
   accessibilityLabel,
   accessibilityRole = "dialog",
+  backdropColor,
+  glassTint,
+  glassIntensity,
+  accessibilityHint = "Swipe down or tap outside to close",
 }) => {
   const insets = useSafeAreaInsets();
   const theme = Theme;
@@ -111,6 +124,106 @@ export const GestureModal: React.FC<GestureModalProps> = ({
   const bloomScale = useSharedValue(0);
   const bloomOpacity = useSharedValue(0);
 
+  // Memoized blur intensity & background (supports overrides)
+  const blurIntensity = useMemo(() => {
+    if (glassType === "none") return 0;
+    if (typeof glassIntensity === "number") return glassIntensity;
+    if (textContent || glassType === "textHeavy") {
+      return theme.colors.glass.intensity.textHeavy;
+    }
+    if (intelligentGlass) {
+      if (glassType === "adaptDark" && theme.isDark) return theme.colors.glass.intensity.medium;
+      if (glassType === "adaptLight" && !theme.isDark) return theme.colors.glass.intensity.medium;
+    }
+    switch (glassType) {
+      case "subtle":
+        return theme.colors.glass.intensity.subtle;
+      case "medium":
+      default:
+        return theme.colors.glass.intensity.medium;
+    }
+  }, [glassType, textContent, intelligentGlass, theme.isDark, glassIntensity]);
+
+  const glassBackground = useMemo(() => {
+    if (textContent) {
+      return theme.colors.glass.modal.textHeavy;
+    }
+    return theme.colors.glass.modal.default;
+  }, [textContent, theme.isDark]);
+
+  // Memoized container/content styles to reduce re-renders
+  const modalContainerStyle = useMemo<ViewStyle>(() => {
+    const baseRadius = theme.device.isTablet ? 24 : 20;
+    const baseStyle: ViewStyle = { backgroundColor: "transparent" };
+    switch (variant) {
+      case "sheet":
+        return {
+          ...baseStyle,
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          maxHeight: "85%",
+          borderTopLeftRadius: baseRadius,
+          borderTopRightRadius: baseRadius,
+          overflow: "hidden",
+        };
+      case "center":
+        return {
+          ...baseStyle,
+          maxWidth: theme.device.isTablet ? "80%" : "90%",
+          maxHeight: "80%",
+          borderRadius: baseRadius,
+          overflow: "hidden",
+          alignSelf: "center",
+        };
+      case "hero":
+        return {
+          ...baseStyle,
+          maxWidth: theme.device.isTablet ? "85%" : "95%",
+          maxHeight: "90%",
+          borderRadius: baseRadius + 4,
+          overflow: "hidden",
+          alignSelf: "center",
+        };
+      case "fullscreen":
+        return {
+          ...baseStyle,
+          flex: 1,
+          marginTop: insets.top,
+          marginBottom: insets.bottom,
+          borderRadius: baseRadius,
+          overflow: "hidden",
+        };
+      default:
+        return baseStyle;
+    }
+  }, [variant, insets.top, insets.bottom, theme.device.isTablet]);
+
+  const contentStyle = useMemo<ViewStyle>(
+    () => ({
+      flex: 1,
+      backgroundColor: blurIntensity > 0 ? "transparent" : colors.content.backgroundModal,
+      padding: theme.spacing.content[contentPadding],
+      paddingBottom: Math.max(
+        theme.spacing.content[contentPadding],
+        insets.bottom + theme.spacing.sm
+      ),
+    }),
+    [blurIntensity, colors.content.backgroundModal, theme.spacing, contentPadding, insets.bottom]
+  );
+
+  // Safe haptic helpers for runOnJS calls
+  const hapticSelection = useCallback(() => {
+    if (!haptic) return;
+    try { Haptics.selectionAsync(); } catch {}
+  }, [haptic]);
+
+  const hapticImpactMedium = useCallback(() => {
+    if (!haptic) return;
+    try { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); } catch {}
+  }, [haptic]);
+
   React.useEffect(() => {
     if (visible) {
       // Award-winning entrance with momentum
@@ -127,6 +240,9 @@ export const GestureModal: React.FC<GestureModalProps> = ({
       // Announce to screen readers
       if (accessibilityLabel) {
         AccessibilityInfo.announceForAccessibility(accessibilityLabel);
+      }
+      if (accessibilityHint) {
+        AccessibilityInfo.announceForAccessibility(accessibilityHint);
       }
     } else {
       // Smooth exit animation
@@ -147,14 +263,12 @@ export const GestureModal: React.FC<GestureModalProps> = ({
   }, [visible]);
 
   // Intelligent gesture handler with momentum physics
-  const gestureHandler = useAnimatedGestureHandler({
+  const gestureHandler = useAnimatedGestureHandler<any, { startY: number }>({
     onStart: (_, context) => {
-      context.startY = gestureTranslateY.value;
+      context.startY = Number(gestureTranslateY.value);
 
-      if (haptic && isIOS) {
-        runOnJS(async () => {
-          await Haptics.selectionAsync();
-        })();
+      if (haptic) {
+        runOnJS(hapticSelection)();
       }
     },
 
@@ -173,9 +287,13 @@ export const GestureModal: React.FC<GestureModalProps> = ({
 
       gestureVelocity.value = event.velocityY;
 
-      // Update backdrop opacity based on drag distance
-      const dragProgress = Math.max(0, Math.min(1, newTranslateY / 200));
-      backdropOpacity.value = 1 - dragProgress * 0.5;
+      // Eased backdrop fade for premium feel
+      backdropOpacity.value = interpolate(
+        newTranslateY,
+        [0, 200],
+        [1, 0.5],
+        Extrapolate.CLAMP
+      );
     },
 
     onEnd: (event) => {
@@ -186,20 +304,21 @@ export const GestureModal: React.FC<GestureModalProps> = ({
         event.velocityY > velocityThreshold;
 
       if (shouldDismiss) {
-        // Momentum-based dismissal
-        gestureTranslateY.value = withSpring(
-          300,
-          theme.animations.spring.momentum
-        );
+        // Adaptive spring based on velocity for natural feel
+        const v = Math.max(0, Math.abs(event.velocityY));
+        gestureTranslateY.value = withSpring(300, {
+          ...(theme.animations.spring.momentum as any),
+          velocity: v,
+          damping: Math.min(40, 12 + v / 120),
+          stiffness: Math.min(500, 180 + v / 6),
+        });
         backdropOpacity.value = withTiming(0, {
           duration: theme.animations.duration.fast,
         });
 
         // Haptic feedback for dismissal
-        if (haptic && isIOS) {
-          runOnJS(async () => {
-            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          })();
+        if (haptic) {
+          runOnJS(hapticImpactMedium)();
         }
 
         // Close modal after animation
@@ -208,10 +327,10 @@ export const GestureModal: React.FC<GestureModalProps> = ({
         }, theme.animations.duration.fast);
       } else {
         // Spring back with momentum
-        gestureTranslateY.value = withSpring(
-          0,
-          theme.animations.spring.elastic
-        );
+        gestureTranslateY.value = withSpring(0, {
+          ...(theme.animations.spring.elastic as any),
+          velocity: Math.max(0, Math.abs(event.velocityY)),
+        });
         backdropOpacity.value = withTiming(1, {
           duration: theme.animations.duration.fast,
         });
@@ -240,51 +359,10 @@ export const GestureModal: React.FC<GestureModalProps> = ({
     }
 
     if (haptic) {
-      await Haptics.selectionAsync();
+      try { await Haptics.selectionAsync(); } catch {}
     }
 
     onClose();
-  };
-
-  // Get intelligent glass blur intensity
-  const getIntelligentBlurIntensity = (): number => {
-    if (glassType === "none" || !isIOS) return 0;
-
-    // Context-aware adaptation
-    if (textContent || glassType === "textHeavy") {
-      return theme.colors.glass.intensity.textHeavy;
-    }
-
-    if (intelligentGlass) {
-      if (glassType === "adaptDark" && theme.isDark) {
-        return theme.colors.glass.intensity.medium;
-      }
-      if (glassType === "adaptLight" && !theme.isDark) {
-        return theme.colors.glass.intensity.medium;
-      }
-    }
-
-    switch (glassType) {
-      case "subtle":
-        return theme.colors.glass.intensity.subtle;
-      case "medium":
-        return theme.colors.glass.intensity.medium;
-      default:
-        return theme.colors.glass.intensity.medium;
-    }
-  };
-
-  // Get intelligent glass background
-  const getIntelligentGlassBackground = (): string => {
-    if (textContent) {
-      return theme.isDark
-        ? theme.colors.glass.modal.textHeavy
-        : theme.colors.glass.modal.textHeavy;
-    }
-
-    return theme.isDark
-      ? theme.colors.glass.modal.default
-      : theme.colors.glass.modal.default;
   };
 
   // Animated styles with momentum physics
@@ -321,81 +399,10 @@ export const GestureModal: React.FC<GestureModalProps> = ({
     pointerEvents: "none",
   }));
 
-  // Get modal container styles with fluid adaptation
-  const getModalContainerStyle = (): ViewStyle => {
-    const baseRadius = theme.device.isTablet ? 24 : 20;
-
-    const baseStyle: ViewStyle = {
-      backgroundColor: "transparent",
-    };
-
-    switch (variant) {
-      case "sheet":
-        return {
-          ...baseStyle,
-          position: "absolute",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          maxHeight: "85%",
-          borderTopLeftRadius: baseRadius,
-          borderTopRightRadius: baseRadius,
-          overflow: "hidden",
-        };
-
-      case "center":
-        return {
-          ...baseStyle,
-          maxWidth: theme.device.isTablet ? "80%" : "90%",
-          maxHeight: "80%",
-          borderRadius: baseRadius,
-          overflow: "hidden",
-          alignSelf: "center",
-        };
-
-      case "hero":
-        return {
-          ...baseStyle,
-          maxWidth: theme.device.isTablet ? "85%" : "95%",
-          maxHeight: "90%",
-          borderRadius: baseRadius + 4,
-          overflow: "hidden",
-          alignSelf: "center",
-        };
-
-      case "fullscreen":
-        return {
-          ...baseStyle,
-          flex: 1,
-          marginTop: insets.top,
-          marginBottom: insets.bottom,
-          borderRadius: baseRadius,
-          overflow: "hidden",
-        };
-
-      default:
-        return baseStyle;
-    }
-  };
-
-  // Get content styles with adaptive padding
-  const getContentStyle = (): ViewStyle => ({
-    flex: 1,
-    backgroundColor:
-      getIntelligentBlurIntensity() > 0
-        ? "transparent"
-        : colors.content.backgroundModal,
-    padding: theme.spacing.content[contentPadding],
-    paddingBottom: Math.max(
-      theme.spacing.content[contentPadding],
-      insets.bottom + theme.spacing.sm
-    ),
-  });
-
   // Render modal content with intelligent glass
   const renderModalContent = () => {
     const content = (
-      <View style={getContentStyle()}>
+      <View style={contentStyle}>
         {/* Gesture handle for sheet modals */}
         {variant === "sheet" && gestureArea === "handle" && (
           <View
@@ -470,18 +477,23 @@ export const GestureModal: React.FC<GestureModalProps> = ({
     );
 
     // Apply intelligent glass effect
-    if (getIntelligentBlurIntensity() > 0) {
+    if (blurIntensity > 0) {
+      // iOS: true blur; Android: graceful fallback tint
+      if (isIOS) {
+        return (
+          <BlurView
+            style={{ flex: 1, backgroundColor: glassBackground }}
+            intensity={blurIntensity}
+            tint={glassTint ?? (theme.isDark ? "dark" : "light")}
+          >
+            {content}
+          </BlurView>
+        );
+      }
       return (
-        <BlurView
-          style={{
-            flex: 1,
-            backgroundColor: getIntelligentGlassBackground(),
-          }}
-          intensity={getIntelligentBlurIntensity()}
-          tint={theme.isDark ? "dark" : "light"}
-        >
+        <View style={{ flex: 1, backgroundColor: glassBackground }}>
           {content}
-        </BlurView>
+        </View>
       );
     }
 
@@ -513,39 +525,40 @@ export const GestureModal: React.FC<GestureModalProps> = ({
               left: 0,
               right: 0,
               bottom: 0,
-              backgroundColor: colors.glass.overlayStrong,
+              backgroundColor: backdropColor ?? colors.glass.overlayStrong,
             },
             backdropStyle,
           ]}
           onPress={handleBackdropPress}
           accessibilityRole="button"
           accessibilityLabel="Close modal"
+          accessibilityHint={accessibilityHint}
         >
           {/* Bloom effect */}
-          {bloomFeedback && <Animated.View style={bloomStyle} />}
+      {bloomFeedback && <AView style={bloomStyle as any} />}
         </AnimatedPressable>
 
         {/* Modal container with gesture support */}
         {gestureEnabled && variant === "sheet" ? (
-          <AnimatedPanGestureHandler onGestureEvent={gestureHandler}>
-            <Animated.View
-              style={[getModalContainerStyle(), modalStyle]}
-              accessibilityRole={accessibilityRole}
+          <AnimatedPanGestureHandler onGestureEvent={gestureHandler as any}>
+            <AView
+              style={[modalContainerStyle, modalStyle]}
+              accessibilityRole={accessibilityRole as any}
               accessibilityLabel={accessibilityLabel}
               accessibilityModal
             >
               {renderModalContent()}
-            </Animated.View>
+            </AView>
           </AnimatedPanGestureHandler>
         ) : (
-          <Animated.View
-            style={[getModalContainerStyle(), modalStyle]}
-            accessibilityRole={accessibilityRole}
+          <AView
+            style={[modalContainerStyle, modalStyle]}
+            accessibilityRole={accessibilityRole as any}
             accessibilityLabel={accessibilityLabel}
             accessibilityModal
           >
             {renderModalContent()}
-          </Animated.View>
+          </AView>
         )}
       </View>
     </Modal>
@@ -553,4 +566,3 @@ export const GestureModal: React.FC<GestureModalProps> = ({
 };
 
 export default GestureModal;
- 

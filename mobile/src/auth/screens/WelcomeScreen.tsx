@@ -6,6 +6,10 @@
  */
 
 import React from 'react';
+// Navigation provided via props from React Navigation
+import * as Haptics from 'expo-haptics';
+import { ActivityIndicator, useColorScheme } from 'react-native';
+import { useState } from 'react';
 import {
   View,
   Text,
@@ -21,15 +25,17 @@ import { useAuth } from '../context/AuthContext';
 // Type fixes for React 18+ compatibility
 const TypedIonicons = Ionicons as any;
 
-interface WelcomeScreenProps {
-  navigation?: any;
-}
+interface WelcomeScreenProps { navigation: any }
 
-const WelcomeScreen: React.FC<WelcomeScreenProps> = () => {
-  const navigation = useNavigation();
+const WelcomeScreen: React.FC<WelcomeScreenProps> = ({ navigation }) => {
+  const colorScheme = useColorScheme();
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [appleLoading, setAppleLoading] = useState(false);
   const { signInWithGoogle, signInWithApple } = useAuth();
 
   const handleGoogleSignIn = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setGoogleLoading(true);
     try {
       await signInWithGoogle();
     } catch (error) {
@@ -38,10 +44,14 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = () => {
         'Google Sign In is not yet implemented. Please use email authentication.',
         [{ text: 'OK' }]
       );
+    } finally {
+      setGoogleLoading(false);
     }
   };
 
   const handleAppleSignIn = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setAppleLoading(true);
     try {
       await signInWithApple();
     } catch (error) {
@@ -50,6 +60,8 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = () => {
         'Apple Sign In is not yet implemented. Please use email authentication.',
         [{ text: 'OK' }]
       );
+    } finally {
+      setAppleLoading(false);
     }
   };
 
@@ -71,20 +83,23 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
+      <StatusBar
+        barStyle={colorScheme === 'dark' ? 'light-content' : 'dark-content'}
+        backgroundColor={colorScheme === 'dark' ? '#000000' : '#ffffff'}
+      />
       
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.logo}>RevSync</Text>
+        <Text style={styles.logo} allowFontScaling={true}>RevSync</Text>
       </View>
 
       {/* Main Content */}
       <View style={styles.main}>
         {/* Welcome Text */}
         <View style={styles.welcomeSection}>
-          <Text style={styles.welcomeTitle}>Get Started</Text>
-          <Text style={styles.welcomeSubtitle}>
-            Create an account or log in to sync your tunes.
+          <Text style={styles.welcomeTitle} allowFontScaling={true}>Get Started</Text>
+          <Text style={styles.welcomeSubtitle} allowFontScaling={true}>
+            Unlock AI‑powered tuning, expert safety checks, and a community built for riders like you.
           </Text>
         </View>
 
@@ -94,18 +109,34 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = () => {
             style={styles.socialButton}
             onPress={handleGoogleSignIn}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Continue with Google"
           >
-                         <TypedIonicons name="logo-google" size={24} color="#4285F4" />
-            <Text style={styles.socialButtonText}>Continue with Google</Text>
+            {googleLoading ? (
+              <ActivityIndicator size="small" color="#4285F4" />
+            ) : (
+              <>
+                <TypedIonicons name="logo-google" size={24} color="#4285F4" />
+                <Text style={styles.socialButtonText} allowFontScaling={true}>Continue with Google</Text>
+              </>
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.socialButton}
             onPress={handleAppleSignIn}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Continue with Apple"
           >
-                         <TypedIonicons name="logo-apple" size={24} color="#000000" />
-            <Text style={styles.socialButtonText}>Continue with Apple</Text>
+            {appleLoading ? (
+              <ActivityIndicator size="small" color="#000000" />
+            ) : (
+              <>
+                <TypedIonicons name="logo-apple" size={24} color="#000000" />
+                <Text style={styles.socialButtonText} allowFontScaling={true}>Continue with Apple</Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -113,7 +144,7 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = () => {
         <View style={styles.dividerContainer}>
           <View style={styles.dividerLine} />
           <View style={styles.dividerTextContainer}>
-            <Text style={styles.dividerText}>Or</Text>
+            <Text style={styles.dividerText} allowFontScaling={true}>Or</Text>
           </View>
           <View style={styles.dividerLine} />
         </View>
@@ -124,29 +155,33 @@ const WelcomeScreen: React.FC<WelcomeScreenProps> = () => {
             style={styles.primaryButton}
             onPress={handleEmailSignUp}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Sign up with email"
           >
-            <Text style={styles.primaryButtonText}>Sign up with email</Text>
+            <Text style={styles.primaryButtonText} allowFontScaling={true}>Sign up with email</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.secondaryButton}
             onPress={handleLogIn}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Log in"
           >
-            <Text style={styles.secondaryButtonText}>Log in</Text>
+            <Text style={styles.secondaryButtonText} allowFontScaling={true}>Log in</Text>
           </TouchableOpacity>
         </View>
       </View>
 
       {/* Footer */}
       <View style={styles.footer}>
-        <Text style={styles.footerText}>
+        <Text style={styles.footerText} allowFontScaling={true}>
           By continuing, you agree to RevSync's{' '}
-          <Text style={styles.footerLink} onPress={handleTermsPress}>
+          <Text style={styles.footerLink} onPress={handleTermsPress} allowFontScaling={true}>
             Terms of Service
           </Text>
           {' '}and{' '}
-          <Text style={styles.footerLink} onPress={handlePrivacyPress}>
+          <Text style={styles.footerLink} onPress={handlePrivacyPress} allowFontScaling={true}>
             Privacy Policy
           </Text>
           .

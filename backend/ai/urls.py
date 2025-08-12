@@ -7,6 +7,7 @@ urlpatterns = [
     
     # 🎯 AI recommendations
     path('recommendations/', views.AIRecommendationsAPIView.as_view(), name='ai-recommendations'),
+    path('tune-request/', views.AITuneRequestAPIView.as_view(), name='ai-tune-request'),
     
     # 📊 User interaction tracking
     path('track-interaction/', views.track_interaction, name='track-interaction'),

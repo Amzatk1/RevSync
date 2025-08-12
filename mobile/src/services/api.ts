@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { AxiosRequestConfig, AxiosResponse } from "axios";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import config from "../config/environment";
 
@@ -14,11 +14,12 @@ const apiClient = axios.create({
 
 // Request interceptor to add auth token and logging
 apiClient.interceptors.request.use(
-  async (config) => {
+  async (config: any) => {
     try {
       const token = await AsyncStorage.getItem("authToken");
       if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
+        config.headers = config.headers || {};
+        (config.headers as any).Authorization = `Bearer ${token}`;
       }
 
       // Log requests in development
@@ -32,7 +33,7 @@ apiClient.interceptors.request.use(
     }
     return config;
   },
-  (error) => {
+  (error: any) => {
     console.error("Request interceptor error:", error);
     return Promise.reject(error);
   }
@@ -40,7 +41,7 @@ apiClient.interceptors.request.use(
 
 // Response interceptor for error handling and logging
 apiClient.interceptors.response.use(
-  (response) => {
+  (response: AxiosResponse) => {
     // Log successful responses in development
     if (config.ENABLE_LOGGING) {
       console.log(
@@ -51,7 +52,7 @@ apiClient.interceptors.response.use(
     }
     return response;
   },
-  async (error) => {
+  async (error: any) => {
     // Log errors in development
     if (config.ENABLE_LOGGING) {
       console.error(

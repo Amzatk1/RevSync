@@ -8,11 +8,9 @@ import {
   Alert,
   SafeAreaView,
   Linking,
-  Dimensions,
   Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 
 // Simple icon component to replace vector icons
@@ -44,7 +42,6 @@ const SimpleIcon: React.FC<{ name: string; size: number; color: string }> = ({ n
 
 import { Theme } from "../styles/theme";
 
-const { height } = Dimensions.get("window");
 
 interface SafetyDisclaimerScreenProps {
   route?: {
@@ -60,7 +57,6 @@ const SafetyDisclaimerScreen: React.FC<SafetyDisclaimerScreenProps> = ({
   route,
   navigation,
 }) => {
-  const [hasReadDisclaimer, setHasReadDisclaimer] = useState(false);
   const [hasScrolledToBottom, setHasScrolledToBottom] = useState(false);
   const [acceptedRisks, setAcceptedRisks] = useState(false);
   const [acceptedLegal, setAcceptedLegal] = useState(false);
@@ -70,7 +66,7 @@ const SafetyDisclaimerScreen: React.FC<SafetyDisclaimerScreenProps> = ({
   const mandatory = route?.params?.mandatory ?? true;
   const returnTo = route?.params?.returnTo;
 
-  const handleScroll = (event: any) => {
+  const handleScroll = async (event: any) => {
     const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
     const paddingToBottom = 20;
 
@@ -80,45 +76,43 @@ const SafetyDisclaimerScreen: React.FC<SafetyDisclaimerScreenProps> = ({
     ) {
       if (!hasScrolledToBottom) {
         setHasScrolledToBottom(true);
-        if (Platform.OS === "ios") {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }
+        try {
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        } catch {}
       }
     }
   };
 
   const handleAcceptanceChange = async (type: string) => {
-    if (Platform.OS === "ios") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+    try { await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); } catch {}
+
+    let nextRisks = acceptedRisks;
+    let nextLegal = acceptedLegal;
+    let nextCompliance = acceptedCompliance;
+    let nextProfessional = acceptedProfessional;
 
     switch (type) {
       case "risks":
-        setAcceptedRisks(!acceptedRisks);
-        break;
+        nextRisks = !acceptedRisks; setAcceptedRisks(nextRisks); break;
       case "legal":
-        setAcceptedLegal(!acceptedLegal);
-        break;
+        nextLegal = !acceptedLegal; setAcceptedLegal(nextLegal); break;
       case "compliance":
-        setAcceptedCompliance(!acceptedCompliance);
-        break;
+        nextCompliance = !acceptedCompliance; setAcceptedCompliance(nextCompliance); break;
       case "professional":
-        setAcceptedProfessional(!acceptedProfessional);
-        break;
+        nextProfessional = !acceptedProfessional; setAcceptedProfessional(nextProfessional); break;
     }
 
-    // Save progress
+    const payload = {
+      acceptedRisks: nextRisks,
+      acceptedLegal: nextLegal,
+      acceptedCompliance: nextCompliance,
+      acceptedProfessional: nextProfessional,
+      hasScrolledToBottom,
+      accepted_version: "2025.2",
+    };
+
     try {
-      await AsyncStorage.setItem(
-        "safety_disclaimer_progress",
-        JSON.stringify({
-          acceptedRisks,
-          acceptedLegal,
-          acceptedCompliance,
-          acceptedProfessional,
-          hasScrolledToBottom,
-        })
-      );
+      await AsyncStorage.setItem("safety_disclaimer_progress", JSON.stringify(payload));
     } catch (error) {
       console.log("Error saving progress:", error);
     }
@@ -163,15 +157,13 @@ const SafetyDisclaimerScreen: React.FC<SafetyDisclaimerScreenProps> = ({
     }
 
     try {
-      await AsyncStorage.setItem("safety_disclaimer_accepted", "true");
-      await AsyncStorage.setItem(
-        "safety_disclaimer_date",
-        new Date().toISOString()
-      );
+      await AsyncStorage.multiSet([
+        ["safety_disclaimer_accepted", "true"],
+        ["safety_disclaimer_date", new Date().toISOString()],
+        ["safety_disclaimer_version", "2025.2"],
+      ]);
 
-      if (Platform.OS === "ios") {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      }
+      try { await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success); } catch {}
 
       Alert.alert(
         "Safety Disclaimer Accepted",
@@ -215,131 +207,137 @@ const SafetyDisclaimerScreen: React.FC<SafetyDisclaimerScreenProps> = ({
       <View style={[styles.header, { backgroundColor: '#FF6B6B' }]}>
         <View style={styles.headerContent}>
           <SimpleIcon name="shield-alert" size={32} color="#FFFFFF" />
-          <Text style={styles.headerTitle}>Safety First</Text>
-          <Text style={styles.headerSubtitle}>
+          <Text style={styles.headerTitle} allowFontScaling>Safety First</Text>
+          <Text style={styles.headerSubtitle} allowFontScaling>
             Motorcycle Tuning Safety Disclaimer
           </Text>
         </View>
       </View>
 
       {/* Disclaimer Content */}
-      <ScrollView style={styles.content} onScroll={handleScroll}>
+      <ScrollView
+        style={styles.content}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+        accessible
+        accessibilityLabel="Safety disclaimer content. Scroll to the end to enable Accept."
+      >
         <View style={styles.warningBox}>
           <SimpleIcon name="alert" size={24} color="#FF3B30" />
-          <Text style={styles.warningText}>
-            CRITICAL SAFETY WARNING: Motorcycle ECU tuning involves significant
-            risks. Please read carefully.
+          <Text style={styles.warningText} allowFontScaling>
+            CRITICAL SAFETY WARNING: Motorcycle ECU tuning carries significant risk. Read this entire notice. Tuning can affect safety, reliability, emissions compliance and insurance. Proceed only if you fully understand the risks.
           </Text>
         </View>
 
         {/* Risk Acknowledgment */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>⚠️ PERFORMANCE RISKS</Text>
-          <Text style={styles.sectionContent}>
-            Engine modifications can cause:
-            {"\n"}• Catastrophic engine failure
-            {"\n"}• Transmission damage
-            {"\n"}• Brake system stress
-            {"\n"}• Suspension component failure
-            {"\n"}• Tire degradation and blowouts
-            {"\n"}• Loss of vehicle control
-            {"\n"}• Fire and explosion risks
-            {"\n"}• Environmental damage
+          <Text style={styles.sectionTitle} allowFontScaling>⚠️ PERFORMANCE RISKS</Text>
+          <Text style={styles.sectionContent} allowFontScaling>
+            Engine and vehicle systems may be damaged or fail, including:
+            {"\n"}• Engine/ECU damage or failure
+            {"\n"}• Drivetrain and transmission stress
+            {"\n"}• Braking and suspension overload
+            {"\n"}• Tyre wear, degradation or blowouts
+            {"\n"}• Loss of control or traction
+            {"\n"}• Fire risk and heat‑related damage
           </Text>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🏛️ LEGAL COMPLIANCE</Text>
-          <Text style={styles.sectionContent}>
-            You are responsible for ensuring modifications comply with:
-            {"\n"}• Federal EPA regulations
-            {"\n"}• State and local emissions laws  
-            {"\n"}• CARB compliance requirements
-            {"\n"}• DOT safety standards
-            {"\n"}• Insurance policy requirements
-            {"\n"}• Vehicle registration laws
-            {"\n"}• Roadworthiness certifications
-            {"\n"}• Noise ordinances
+          <Text style={styles.sectionTitle} allowFontScaling>🏛️ LEGAL COMPLIANCE</Text>
+          <Text style={styles.sectionContent} allowFontScaling>
+            You are responsible for legal compliance where you ride. Examples include:
+            {"\n"}• UK: DVSA/MOT rules and Road Vehicles (Construction & Use) regs; road‑use legality and noise limits
+            {"\n"}• EU/EEA: Type‑approval and Euro 4/5 emissions and sound requirements
+            {"\n"}• US: EPA federal rules; state laws including California CARB (EO exemptions) and DOT safety standards
+            {"\n"}• Other regions: local registration, insurance and roadworthiness rules
+            {"\n"}• Track/Off‑road only items must not be used on public roads
           </Text>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🔧 TECHNICAL LIMITATIONS</Text>
-          <Text style={styles.sectionContent}>
-            Our AI recommendations have limitations:
-            {"\n"}• May not account for wear/damage
-            {"\n"}• Cannot predict individual riding styles
-            {"\n"}• Based on general motorcycle data
-            {"\n"}• May not reflect latest safety recalls
-            {"\n"}• Cannot guarantee compatibility
-            {"\n"}• May not account for aftermarket parts
-            {"\n"}• Limited real-world testing data
-            {"\n"}• Regional fuel variations not considered
+          <Text style={styles.sectionTitle} allowFontScaling>🏁 TRACK / OFF‑ROAD ONLY</Text>
+          <Text style={styles.sectionContent} allowFontScaling>
+            Some tunes and parts are designated “track / off‑road only.” Where required by law, these must not be used on public roads. Always follow local rules and signage.
           </Text>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>👨‍🔧 PROFESSIONAL REQUIREMENTS</Text>
-          <Text style={styles.sectionContent}>
-            ECU modifications should only be performed by:
-            {"\n"}• Licensed motorcycle technicians
-            {"\n"}• Certified tuning professionals
-            {"\n"}• Authorized service centers
-            {"\n"}• Experienced mechanics with proper tools
-            {"\n"}• Professionals with access to DYNO testing
-            {"\n"}• Technicians familiar with your bike model
-            {"\n"}• Shops with liability insurance
-            {"\n"}• DYNO-equipped facilities for validation
+          <Text style={styles.sectionTitle} allowFontScaling>🔧 TECHNICAL LIMITATIONS</Text>
+          <Text style={styles.sectionContent} allowFontScaling>
+            Our AI recommendations are advisory:
+            {"\n"}• May not account for wear, damage or prior modifications
+            {"\n"}• Cannot predict individual riding style or conditions
+            {"\n"}• Based on available datasets and community inputs
+            {"\n"}• May not reflect the latest recalls or service bulletins
+            {"\n"}• Compatibility is not guaranteed across aftermarket parts or fuels
           </Text>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📋 YOUR RESPONSIBILITIES</Text>
-          <Text style={styles.sectionContent}>
-            By using this app, you agree to:
-            {"\n"}• Consult qualified professionals before any modifications
-            {"\n"}• Verify all legal requirements in your jurisdiction
-            {"\n"}• Use appropriate safety equipment and procedures
-            {"\n"}• Understand your motorcycle's technical specifications
-            {"\n"}• Accept full responsibility for all modifications
-            {"\n"}• Maintain proper insurance coverage
-            {"\n"}• Follow all manufacturer safety guidelines
-            {"\n"}• Report any safety issues to [Your Company Name]
+          <Text style={styles.sectionTitle} allowFontScaling>👨‍🔧 PROFESSIONAL REQUIREMENTS</Text>
+          <Text style={styles.sectionContent} allowFontScaling>
+            ECU modifications should be performed by qualified professionals:
+            {"\n"}• Licensed motorcycle technicians or certified tuners
+            {"\n"}• Authorized service centres with appropriate tools
+            {"\n"}• DYNO‑equipped facilities for validation where applicable
+            {"\n"}• Technicians experienced with your specific model
           </Text>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>🚫 LIABILITY DISCLAIMER</Text>
-          <Text style={styles.sectionContent}>
-            [Your Company Name] and its affiliates disclaim all liability for:
+          <Text style={styles.sectionTitle} allowFontScaling>📋 YOUR RESPONSIBILITIES</Text>
+          <Text style={styles.sectionContent} allowFontScaling>
+            By using RevSync, you agree to:
+            {"\n"}• Consult qualified professionals before modifications
+            {"\n"}• Verify road‑use legality and emissions/noise rules in your region
+            {"\n"}• Use proper safety equipment and procedures
+            {"\n"}• Understand your motorcycle’s specifications and limits
+            {"\n"}• Accept full responsibility for all modifications and their consequences
+            {"\n"}• Maintain appropriate insurance coverage
+            {"\n"}• Follow manufacturer and regulatory safety guidance
+            {"\n"}• Report safety concerns to safety@revsync.com
+          </Text>
+        </View>
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle} allowFontScaling>🚫 LIABILITY DISCLAIMER</Text>
+          <Text style={styles.sectionContent} allowFontScaling>
+            RevSync Ltd and its affiliates disclaim liability for:
             {"\n"}• Personal injury or death
-            {"\n"}• Property damage or loss
-            {"\n"}• Environmental damage
-            {"\n"}• Legal violations or penalties
-            {"\n"}• Insurance claim denials
-            {"\n"}• Vehicle devaluation
-            {"\n"}• Performance degradation
-            {"\n"}• [Your Company Name] provides recommendations only
+            {"\n"}• Property or environmental damage
+            {"\n"}• Legal violations, penalties or insurance denials
+            {"\n"}• Vehicle devaluation or performance degradation
+            {"\n"}RevSync provides advisory recommendations only and does not guarantee safety or compliance.
           </Text>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📞 SUPPORT & SAFETY CONTACTS</Text>
-          <Text style={styles.sectionContent}>
-            For safety questions or emergency support:
-            {"\n"}• Safety Hotline: +1 (555) 123-XXXX
-            {"\n"}• Email: safety@yourcompany.com
-            {"\n"}• Emergency: Contact local emergency services
-            {"\n"}• Technical Support: support@yourcompany.com
+          <Text style={styles.sectionTitle} allowFontScaling>📞 SUPPORT & SAFETY CONTACTS</Text>
+          <Text style={styles.sectionContent} allowFontScaling>
+            For safety questions or urgent support:
+            {"\n"}• Safety Hotline (UK): +44 20 1234 0000
+            {"\n"}• Email: safety@revsync.com
+            {"\n"}• Technical Support: support@revsync.com
+            {"\n"}• Emergency: contact local emergency services
           </Text>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📝 ACKNOWLEDGMENT REQUIRED</Text>
-          <Text style={styles.sectionContent}>
+          <Text style={styles.sectionTitle} allowFontScaling>📝 ACKNOWLEDGMENT REQUIRED</Text>
+          <Text style={styles.sectionContent} allowFontScaling>
             Please acknowledge each section below to proceed:
           </Text>
         </View>
+
+        {!hasScrolledToBottom && (
+          <View style={styles.scrollIndicator} accessible accessibilityLiveRegion="polite">
+            <SimpleIcon name="arrow-down" size={18} color={Theme.colors.content.primarySecondary} />
+            <Text style={styles.scrollIndicatorText} allowFontScaling>
+              Scroll to the end to enable Accept
+            </Text>
+          </View>
+        )}
       </ScrollView>
 
       {/* Acceptance Checkboxes */}
@@ -347,6 +345,9 @@ const SafetyDisclaimerScreen: React.FC<SafetyDisclaimerScreenProps> = ({
         <TouchableOpacity
           style={styles.checkbox}
           onPress={() => handleAcceptanceChange("risks")}
+          accessible
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: acceptedRisks }}
         >
           <View
             style={[
@@ -358,7 +359,7 @@ const SafetyDisclaimerScreen: React.FC<SafetyDisclaimerScreenProps> = ({
               <SimpleIcon name="check" size={16} color="#FFFFFF" />
             )}
           </View>
-          <Text style={styles.checkboxText}>
+          <Text style={styles.checkboxText} allowFontScaling>
             I understand the performance and safety risks
           </Text>
         </TouchableOpacity>
@@ -366,6 +367,9 @@ const SafetyDisclaimerScreen: React.FC<SafetyDisclaimerScreenProps> = ({
         <TouchableOpacity
           style={styles.checkbox}
           onPress={() => handleAcceptanceChange("legal")}
+          accessible
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: acceptedLegal }}
         >
           <View
             style={[
@@ -377,7 +381,7 @@ const SafetyDisclaimerScreen: React.FC<SafetyDisclaimerScreenProps> = ({
               <SimpleIcon name="check" size={16} color="#FFFFFF" />
             )}
           </View>
-          <Text style={styles.checkboxText}>
+          <Text style={styles.checkboxText} allowFontScaling>
             I will ensure legal compliance in my jurisdiction
           </Text>
         </TouchableOpacity>
@@ -385,6 +389,9 @@ const SafetyDisclaimerScreen: React.FC<SafetyDisclaimerScreenProps> = ({
         <TouchableOpacity
           style={styles.checkbox}
           onPress={() => handleAcceptanceChange("compliance")}
+          accessible
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: acceptedCompliance }}
         >
           <View
             style={[
@@ -396,7 +403,7 @@ const SafetyDisclaimerScreen: React.FC<SafetyDisclaimerScreenProps> = ({
               <SimpleIcon name="check" size={16} color="#FFFFFF" />
             )}
           </View>
-          <Text style={styles.checkboxText}>
+          <Text style={styles.checkboxText} allowFontScaling>
             I understand AI limitations and technical requirements
           </Text>
         </TouchableOpacity>
@@ -404,6 +411,9 @@ const SafetyDisclaimerScreen: React.FC<SafetyDisclaimerScreenProps> = ({
         <TouchableOpacity
           style={styles.checkbox}
           onPress={() => handleAcceptanceChange("professional")}
+          accessible
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: acceptedProfessional }}
         >
           <View
             style={[
@@ -415,7 +425,7 @@ const SafetyDisclaimerScreen: React.FC<SafetyDisclaimerScreenProps> = ({
               <SimpleIcon name="check" size={16} color="#FFFFFF" />
             )}
           </View>
-          <Text style={styles.checkboxText}>
+          <Text style={styles.checkboxText} allowFontScaling>
             I will only use qualified professionals for modifications
           </Text>
         </TouchableOpacity>
@@ -424,9 +434,19 @@ const SafetyDisclaimerScreen: React.FC<SafetyDisclaimerScreenProps> = ({
       {/* Support Link */}
       <TouchableOpacity style={styles.supportLink} onPress={handleContactSupport}>
         <SimpleIcon name="help-circle" size={20} color={Theme.colors.accent.primary} />
-        <Text style={styles.supportText}>Need help? Contact Safety Support</Text>
+        <Text style={styles.supportText} allowFontScaling>Need help? Contact Safety Support</Text>
       </TouchableOpacity>
+      <View style={{ alignItems: "center", marginBottom: 4 }}>
+        <Text style={{ fontSize: 12, color: Theme.colors.content.primarySecondary }} allowFontScaling>
+          By continuing you agree to our Terms, Privacy Policy and EULA.
+        </Text>
+      </View>
 
+      <View style={styles.documentInfo}>
+        <Text style={styles.documentInfoText} allowFontScaling>
+          Last updated: August 8, 2025 • Doc v2025.2
+        </Text>
+      </View>
       {/* Action Buttons */}
       <View style={styles.buttonContainer}>
         <TouchableOpacity
@@ -436,16 +456,25 @@ const SafetyDisclaimerScreen: React.FC<SafetyDisclaimerScreenProps> = ({
           ]}
           onPress={handleAccept}
           disabled={!canProceed()}
+          accessible
+          accessibilityRole="button"
+          accessibilityLabel="Accept all terms and responsibilities"
         >
           <SimpleIcon name="arrow-right" size={20} color="#FFFFFF" />
-          <Text style={styles.acceptButtonText}>
+          <Text style={styles.acceptButtonText} allowFontScaling>
             I Accept All Terms & Responsibilities
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.declineButton} onPress={handleDecline}>
+        <TouchableOpacity
+          style={styles.declineButton}
+          onPress={handleDecline}
+          accessible
+          accessibilityRole="button"
+          accessibilityLabel="Decline safety disclaimer"
+        >
           <SimpleIcon name="arrow-down" size={16} color="#FF6B6B" />
-          <Text style={styles.declineButtonText}>Decline</Text>
+          <Text style={styles.declineButtonText} allowFontScaling>Decline</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>

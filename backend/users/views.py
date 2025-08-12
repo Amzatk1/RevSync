@@ -14,6 +14,8 @@ from .models import (
     UserAchievement, UserStats, UserFriend, MessageThread, Message, Community, CommunityMembership, CommunityPost, PostComment,
     MessageReceipt, PointTransaction
 )
+from bikes.models import Motorcycle, Manufacturer, ECUType, EngineType
+from bikes.serializers import MotorcycleListSerializer, MotorcycleDetailSerializer
 from .serializers import (
     UserRegistrationSerializer, UserLoginSerializer, UserProfileSerializer,
     RidingProfileSerializer, UserGarageSerializer, RideSessionSerializer,
@@ -1051,4 +1053,159 @@ class UserRankingView(generics.RetrieveAPIView):
             return self.request.user.stats
         except UserStats.DoesNotExist:
             # Create stats object if it doesn't exist
-            return UserStats.objects.create(user=self.request.user) 
+            return UserStats.objects.create(user=self.request.user)
+
+
+class MotorcycleSearchView(generics.ListAPIView):
+    """Search motorcycles for adding to garage"""
+    serializer_class = MotorcycleListSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filter_backends = [SearchFilter, DjangoFilterBackend, OrderingFilter]
+    search_fields = ['model_name', 'manufacturer__name']
+    filterset_fields = ['manufacturer', 'year', 'category', 'displacement_cc']
+    ordering_fields = ['year', 'manufacturer__name', 'model_name', 'displacement_cc']
+    ordering = ['-year', 'manufacturer__name', 'model_name']
+    
+    def get_queryset(self):
+        queryset = Motorcycle.objects.filter(is_active=True).select_related('manufacturer', 'category')
+        
+        # Filter by user's existing garage to show if already added
+        user_garage_motorcycles = UserGarage.objects.filter(
+            user=self.request.user, 
+            ownership_status='owned'
+        ).values_list('motorcycle_id', flat=True)
+        
+        # Add annotation for whether user already owns this bike
+        queryset = queryset.extra(
+            select={'user_owns': f'CASE WHEN id IN ({",".join(map(str, user_garage_motorcycles)) or "0"}) THEN 1 ELSE 0 END'}
+        )
+        
+        return queryset
+    
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        
+        # Add metadata about user's garage
+        user_garage_count = UserGarage.objects.filter(
+            user=request.user, 
+            ownership_status='owned'
+        ).count()
+        
+        response.data = {
+            'results': response.data['results'] if 'results' in response.data else response.data,
+            'count': response.data.get('count', len(response.data)),
+            'next': response.data.get('next'),
+            'previous': response.data.get('previous'),
+            'user_garage_count': user_garage_count,
+            'search_performed': bool(request.query_params.get('search'))
+        }
+        
+        return response
+
+
+class AddCustomMotorcycleView(generics.CreateAPIView):
+    """Add a custom motorcycle to the database and user's garage"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def post(self, request):
+        data = request.data
+        
+        # Extract motorcycle data
+        manufacturer_name = data.get('manufacturer', '').strip()
+        model_name = data.get('model_name', '').strip()
+        year = data.get('year')
+        
+        if not all([manufacturer_name, model_name, year]):
+            return Response({
+                'error': 'Manufacturer, model name, and year are required'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            # Get or create manufacturer
+            manufacturer, created = Manufacturer.objects.get_or_create(
+                name=manufacturer_name,
+                defaults={'is_active': True}
+            )
+            
+            # Check if motorcycle already exists
+            existing_bike = Motorcycle.objects.filter(
+                manufacturer=manufacturer,
+                model_name=model_name,
+                year=year
+            ).first()
+            
+            if existing_bike:
+                # Check if user already has this bike in garage
+                existing_garage_entry = UserGarage.objects.filter(
+                    user=request.user,
+                    motorcycle=existing_bike,
+                    ownership_status='owned'
+                ).first()
+                
+                if existing_garage_entry:
+                    return Response({
+                        'error': 'You already have this motorcycle in your garage',
+                        'motorcycle': MotorcycleDetailSerializer(existing_bike).data,
+                        'garage_entry': UserGarageSerializer(existing_garage_entry).data
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                else:
+                    # Add existing bike to user's garage
+                    garage_entry = UserGarage.objects.create(
+                        user=request.user,
+                        motorcycle=existing_bike,
+                        ownership_status='owned',
+                        purchase_date=data.get('purchase_date'),
+                        purchase_price=data.get('purchase_price'),
+                        current_mileage_km=data.get('current_mileage_km'),
+                        nickname=data.get('nickname', ''),
+                        notes=data.get('notes', '')
+                    )
+                    
+                    return Response({
+                        'message': 'Motorcycle added to your garage',
+                        'motorcycle': MotorcycleDetailSerializer(existing_bike).data,
+                        'garage_entry': UserGarageSerializer(garage_entry).data,
+                        'created_motorcycle': False
+                    }, status=status.HTTP_201_CREATED)
+            
+            # Create new custom motorcycle
+            motorcycle = Motorcycle.objects.create(
+                manufacturer=manufacturer,
+                model_name=model_name,
+                year=year,
+                displacement_cc=data.get('displacement_cc', 0),
+                max_power_hp=data.get('max_power_hp'),
+                max_torque_nm=data.get('max_torque_nm'),
+                transmission_type=data.get('transmission_type', 'manual'),
+                gears=data.get('gears', 6),
+                abs=data.get('abs', False),
+                traction_control=data.get('traction_control', False),
+                quickshifter=data.get('quickshifter', False),
+                primary_image_url=data.get('image_url', ''),
+                description=f"Custom motorcycle added by {request.user.username}",
+                is_active=True
+            )
+            
+            # Add to user's garage
+            garage_entry = UserGarage.objects.create(
+                user=request.user,
+                motorcycle=motorcycle,
+                ownership_status='owned',
+                purchase_date=data.get('purchase_date'),
+                purchase_price=data.get('purchase_price'),
+                current_mileage_km=data.get('current_mileage_km'),
+                nickname=data.get('nickname', ''),
+                notes=data.get('notes', '')
+            )
+            
+            return Response({
+                'message': 'Custom motorcycle created and added to your garage',
+                'motorcycle': MotorcycleDetailSerializer(motorcycle).data,
+                'garage_entry': UserGarageSerializer(garage_entry).data,
+                'created_motorcycle': True
+            }, status=status.HTTP_201_CREATED)
+            
+        except Exception as e:
+            return Response({
+                'error': f'Failed to create motorcycle: {str(e)}'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 

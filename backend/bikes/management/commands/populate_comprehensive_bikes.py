@@ -30,8 +30,13 @@ class Command(BaseCommand):
         manufacturers = {m.name: m for m in Manufacturer.objects.all()}
         categories = {c.name: c for c in BikeCategory.objects.all()}
         
-        # Add more manufacturers if needed
+        # Ensure core + additional manufacturers exist
+        self.ensure_core_manufacturers(manufacturers)
         self.create_additional_manufacturers(manufacturers)
+        
+        # Ensure required categories exist
+        self.ensure_categories(categories)
+        categories = {c.name: c for c in BikeCategory.objects.all()}
         
         # Add comprehensive motorcycle database
         total_created = self.create_comprehensive_motorcycles(manufacturers, categories)
@@ -60,6 +65,21 @@ class Command(BaseCommand):
             {"name": "Can-Am", "country": "Canada", "founded_year": 1971, "website": "https://can-am.brp.com"},
             {"name": "Polaris", "country": "United States", "founded_year": 1954, "website": "https://polaris.com"},
             {"name": "Norton", "country": "United Kingdom", "founded_year": 1898, "website": "https://nortonmotorcycles.com"},
+            {"name": "MV Agusta", "country": "Italy", "founded_year": 1945, "website": "https://mvagusta.com"},
+            {"name": "Moto Guzzi", "country": "Italy", "founded_year": 1921, "website": "https://motoguzzi.com"},
+            {"name": "Indian", "country": "United States", "founded_year": 1901, "website": "https://indianmotorcycle.com"},
+            {"name": "Bimota", "country": "Italy", "founded_year": 1973, "website": "https://bimota.it"},
+            {"name": "Hyosung", "country": "South Korea", "founded_year": 1978, "website": "https://hyosung.com"},
+            {"name": "TVS", "country": "India", "founded_year": 1978, "website": "https://tvsmotor.com"},
+            {"name": "Bajaj", "country": "India", "founded_year": 1945, "website": "https://bajajauto.com"},
+            {"name": "Moto Morini", "country": "Italy", "founded_year": 1937, "website": "https://motomorini.eu"},
+            {"name": "Cagiva", "country": "Italy", "founded_year": 1950, "website": "https://cagiva.com"},
+            {"name": "Buell", "country": "United States", "founded_year": 1983, "website": "https://buellmotorcycle.com"},
+            {"name": "Mash", "country": "France", "founded_year": 2012, "website": "https://mash-motors.fr"},
+            {"name": "SWM", "country": "Italy", "founded_year": 1971, "website": "https://swmmotorcycles.com"},
+            {"name": "Keeway", "country": "China", "founded_year": 1999, "website": "https://keeway.com"},
+            {"name": "Zontes", "country": "China", "founded_year": 2003, "website": "https://zontesglobal.com"},
+            {"name": "Lambretta", "country": "Italy", "founded_year": 1947, "website": "https://lambrettascooters.com"},
         ]
         
         for data in additional_manufacturers:
@@ -72,11 +92,100 @@ class Command(BaseCommand):
                 if created:
                     self.stdout.write(f"Added manufacturer: {manufacturer.name}")
 
+    def ensure_core_manufacturers(self, manufacturers):
+        """Ensure core manufacturers referenced in dataset exist"""
+        core = [
+            {"name": "Yamaha", "country": "Japan", "founded_year": 1955, "website": "https://www.yamaha-motor.com"},
+            {"name": "Honda", "country": "Japan", "founded_year": 1948, "website": "https://www.honda.com"},
+            {"name": "Kawasaki", "country": "Japan", "founded_year": 1896, "website": "https://www.kawasaki.com"},
+            {"name": "Suzuki", "country": "Japan", "founded_year": 1909, "website": "https://www.suzuki.com"},
+            {"name": "Ducati", "country": "Italy", "founded_year": 1926, "website": "https://www.ducati.com"},
+            {"name": "BMW", "country": "Germany", "founded_year": 1916, "website": "https://www.bmw-motorrad.com"},
+            {"name": "KTM", "country": "Austria", "founded_year": 1953, "website": "https://www.ktm.com"},
+            {"name": "Harley-Davidson", "country": "United States", "founded_year": 1903, "website": "https://www.harley-davidson.com"},
+            {"name": "Triumph", "country": "United Kingdom", "founded_year": 1902, "website": "https://www.triumphmotorcycles.com"},
+            {"name": "Aprilia", "country": "Italy", "founded_year": 1945, "website": "https://www.aprilia.com"},
+            {"name": "Zero Motorcycles", "country": "United States", "founded_year": 2006, "website": "https://www.zeromotorcycles.com"},
+            {"name": "CF Moto", "country": "China", "founded_year": 1989, "website": "https://cfmoto.com"},
+            {"name": "Benelli", "country": "Italy", "founded_year": 1911, "website": "https://benelli.com"},
+        ]
+        for data in core:
+            if data["name"] not in manufacturers:
+                obj, created = Manufacturer.objects.get_or_create(
+                    name=data["name"], defaults=data
+                )
+                manufacturers[data["name"]] = obj
+                if created:
+                    self.stdout.write(f"Added manufacturer: {obj.name}")
+
     def create_comprehensive_motorcycles(self, manufacturers, categories):
         """Create comprehensive motorcycle database with 500+ models"""
         
         # Massive motorcycle database with popular models from 2015-2024
         motorcycles_data = [
+            # MV AGUSTA - Performance lineup
+            *self.generate_model_years("MV Agusta", "F4 1000", "supersport", 2010, 2018,
+                                     {"displacement_cc": 998, "cylinders": 4, "max_power_hp": 195, "msrp_usd": 21999}),
+            *self.generate_model_years("MV Agusta", "F3 800", "supersport", 2013, 2024,
+                                     {"displacement_cc": 798, "cylinders": 3, "max_power_hp": 148, "msrp_usd": 17999}),
+            *self.generate_model_years("MV Agusta", "Brutale 800", "naked", 2013, 2024,
+                                     {"displacement_cc": 798, "cylinders": 3, "max_power_hp": 140, "msrp_usd": 14999}),
+            
+            # MOTO GUZZI - V-twin classics
+            *self.generate_model_years("Moto Guzzi", "V7", "naked", 2010, 2024,
+                                     {"displacement_cc": 744, "cylinders": 2, "max_power_hp": 52, "msrp_usd": 8999}),
+            *self.generate_model_years("Moto Guzzi", "V9", "naked", 2016, 2024,
+                                     {"displacement_cc": 853, "cylinders": 2, "max_power_hp": 65, "msrp_usd": 9999}),
+            *self.generate_model_years("Moto Guzzi", "V85 TT", "adventure", 2019, 2024,
+                                     {"displacement_cc": 853, "cylinders": 2, "max_power_hp": 80, "msrp_usd": 11990}),
+
+            # INDIAN - American cruisers
+            *self.generate_model_years("Indian", "Scout", "cruiser", 2015, 2024,
+                                     {"displacement_cc": 1133, "cylinders": 2, "max_power_hp": 100, "msrp_usd": 12999}),
+            *self.generate_model_years("Indian", "Chief", "cruiser", 2014, 2024,
+                                     {"displacement_cc": 1811, "cylinders": 2, "max_power_hp": 89, "msrp_usd": 18999}),
+            *self.generate_model_years("Indian", "FTR 1200", "naked", 2019, 2024,
+                                     {"displacement_cc": 1203, "cylinders": 2, "max_power_hp": 120, "msrp_usd": 12999}),
+
+            # HYOSUNG - Budget lineup
+            *self.generate_model_years("Hyosung", "GT250R", "sport", 2010, 2020,
+                                     {"displacement_cc": 249, "cylinders": 2, "max_power_hp": 28, "msrp_usd": 3999}),
+            *self.generate_model_years("Hyosung", "GD250N", "naked", 2015, 2020,
+                                     {"displacement_cc": 249, "cylinders": 1, "max_power_hp": 26, "msrp_usd": 3499}),
+
+            # TVS / BAJAJ - India
+            *self.generate_model_years("TVS", "Apache RR 310", "sport", 2018, 2024,
+                                     {"displacement_cc": 312, "cylinders": 1, "max_power_hp": 34, "msrp_usd": 3999}),
+            *self.generate_model_years("Bajaj", "Dominar 400", "naked", 2017, 2024,
+                                     {"displacement_cc": 373, "cylinders": 1, "max_power_hp": 40, "msrp_usd": 2999}),
+
+            # MOTO MORINI
+            *self.generate_model_years("Moto Morini", "SeiZetto 6 1/2", "naked", 2022, 2024,
+                                     {"displacement_cc": 649, "cylinders": 2, "max_power_hp": 60, "msrp_usd": 6599}),
+            *self.generate_model_years("Moto Morini", "X-Cape 650", "adventure", 2021, 2024,
+                                     {"displacement_cc": 649, "cylinders": 2, "max_power_hp": 60, "msrp_usd": 7299}),
+
+            # CAGIVA (legacy)
+            *self.generate_model_years("Cagiva", "Mito 125", "sport", 1994, 2012,
+                                     {"displacement_cc": 125, "cylinders": 1, "max_power_hp": 30, "msrp_usd": 3999}),
+            *self.generate_model_years("Cagiva", "Raptor 650", "naked", 2001, 2007,
+                                     {"displacement_cc": 645, "cylinders": 2, "max_power_hp": 70, "msrp_usd": 6999}),
+
+            # BUELL (revival)
+            *self.generate_model_years("Buell", "Hammerhead 1190", "sport", 2022, 2024,
+                                     {"displacement_cc": 1190, "cylinders": 2, "max_power_hp": 185, "msrp_usd": 18999}),
+
+            # KEEWAY / ZONTES (budget)
+            *self.generate_model_years("Keeway", "K-Light 200", "cruiser", 2019, 2024,
+                                     {"displacement_cc": 197, "cylinders": 1, "max_power_hp": 17, "msrp_usd": 2799}),
+            *self.generate_model_years("Zontes", "310T", "adventure", 2019, 2024,
+                                     {"displacement_cc": 312, "cylinders": 1, "max_power_hp": 35, "msrp_usd": 4999}),
+
+            # LAMBRETTA (scooters)
+            *self.generate_model_years("Lambretta", "V125 Special", "scooter", 2018, 2024,
+                                     {"displacement_cc": 124, "cylinders": 1, "max_power_hp": 10, "msrp_usd": 3199}),
+            *self.generate_model_years("Lambretta", "V200 Special", "scooter", 2018, 2024,
+                                     {"displacement_cc": 169, "cylinders": 1, "max_power_hp": 12, "msrp_usd": 3499}),
             # YAMAHA - Expanded lineup
             # R-Series
             *self.generate_model_years("Yamaha", "YZF-R1", "supersport", 2015, 2024, 
@@ -1077,3 +1186,30 @@ class Command(BaseCommand):
             motorcycles.append(specs)
         
         return motorcycles 
+
+    def ensure_categories(self, categories):
+        """Create required bike categories if missing"""
+        required = [
+            ("sport", "Sport"),
+            ("supersport", "High-performance SuperSport"),
+            ("naked", "Naked/Street"),
+            ("touring", "Touring/Long Distance"),
+            ("cruiser", "Cruiser"),
+            ("adventure", "Adventure/ADV"),
+            ("dual_sport", "Dual Sport"),
+            ("dirt_bike", "Dirt Bike / Motocross"),
+            ("scooter", "Scooter"),
+            ("electric", "Electric Motorcycle"),
+            ("cafe_racer", "Cafe Racer"),
+            ("bobber", "Bobber"),
+            ("chopper", "Chopper"),
+        ]
+        for key, desc in required:
+            if key not in categories:
+                obj, created = BikeCategory.objects.get_or_create(
+                    name=key,
+                    defaults={"description": desc}
+                )
+                categories[key] = obj
+                if created:
+                    self.stdout.write(f"Added category: {key}")

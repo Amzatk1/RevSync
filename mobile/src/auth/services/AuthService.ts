@@ -12,7 +12,6 @@
 
 import { createClient, SupabaseClient, AuthResponse as SupabaseAuthResponse, AuthTokenResponsePassword, User } from '@supabase/supabase-js';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import 'react-native-url-polyfill/auto';
 
 import {
   AuthUser,
@@ -31,9 +30,18 @@ class AuthService {
   private supabase: SupabaseClient;
 
   constructor() {
-    // Validate environment variables
-    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+    // Safely read environment variables without mutations
+    let supabaseUrl: string | undefined;
+    let supabaseAnonKey: string | undefined;
+    
+    try {
+      supabaseUrl = (global as any)?.__EXPO_ENV__?.EXPO_PUBLIC_SUPABASE_URL || 
+                    (typeof process !== 'undefined' && process.env ? process.env.EXPO_PUBLIC_SUPABASE_URL : undefined);
+      supabaseAnonKey = (global as any)?.__EXPO_ENV__?.EXPO_PUBLIC_SUPABASE_ANON_KEY || 
+                        (typeof process !== 'undefined' && process.env ? process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY : undefined);
+    } catch (error) {
+      // Use undefined if env access fails
+    }
 
     if (!supabaseUrl || !supabaseAnonKey) {
       console.error('❌ Missing Supabase configuration!');
@@ -70,8 +78,17 @@ class AuthService {
   }
 
   private validateConfiguration(): boolean {
-    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+    let supabaseUrl: string | undefined;
+    let supabaseAnonKey: string | undefined;
+    
+    try {
+      supabaseUrl = (global as any)?.__EXPO_ENV__?.EXPO_PUBLIC_SUPABASE_URL || 
+                    (typeof process !== 'undefined' && process.env ? process.env.EXPO_PUBLIC_SUPABASE_URL : undefined);
+      supabaseAnonKey = (global as any)?.__EXPO_ENV__?.EXPO_PUBLIC_SUPABASE_ANON_KEY || 
+                        (typeof process !== 'undefined' && process.env ? process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY : undefined);
+    } catch (error) {
+      return false;
+    }
     
     if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.includes('YOUR_PROJECT_ID')) {
       return false;
@@ -133,7 +150,8 @@ class AuthService {
         data: {
           user: authUser,
           session: authSession,
-          requires2FA: false, // We can implement this later if needed
+          requires2FA: false,
+          requiresVerification: false,
         },
       };
     } catch (error) {
@@ -208,7 +226,7 @@ class AuthService {
         success: true,
         data: {
           user: authUser,
-          session: authData.session ? this.transformSupabaseSession(authData.session) : null,
+          session: authData.session ? this.transformSupabaseSession(authData.session) : undefined,
           requiresVerification: !authData.user.email_confirmed_at,
         },
       };
@@ -292,8 +310,9 @@ class AuthService {
       refreshToken: session.refresh_token,
       expiresAt: new Date(session.expires_at * 1000).toISOString(),
       tokenType: session.token_type || 'bearer',
-      user: session.user,
-    };
+      // Optional fields not provided by Supabase are omitted
+      user: session.user as any,
+    } as any;
   }
 
   // Placeholder methods for features we can implement later

@@ -375,3 +375,26 @@ class RecommendationModel(models.Model):
     
     def __str__(self):
         return f"{self.name} v{self.version} ({'Active' if self.is_active else 'Inactive'})" 
+
+
+class AITuneRequest(models.Model):
+    """
+    🧠 Records user AI tune requests and results
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='ai_tune_requests')
+    # Optional linkage to a motorcycle entity if available in bikes app; store raw info for now
+    bike_id = models.IntegerField(null=True, blank=True, help_text="Client-provided bike ID")
+    bike_snapshot = models.JSONField(default=dict, help_text="Bike details at request time")
+    preferences = models.JSONField(default=dict, help_text="Requested tune preferences/filters")
+    recommendation_ids = models.JSONField(default=list, help_text="IDs of tunes recommended")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'ai_tune_requests'
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'created_at']),
+        ]
+
+    def __str__(self):
+        return f"AI Tune Request by {self.user.username} at {self.created_at}"

@@ -1,22 +1,29 @@
 {
   "compilerOptions": {
     "target": "esnext",
-    "lib": ["es2019", "es2020.bigint", "esnext.asynciterable"],
+    "lib": [
+      "es2019",
+      "es2020.bigint",
+      "esnext.asynciterable",
+      "dom"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "strict": true,
     "forceConsistentCasingInFileNames": true,
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
     "jsx": "react-native",
     "module": "esnext",
     "baseUrl": "./src",
-    "typeRoots": ["./node_modules/@types", "./types"],
-    "types": ["react-native"]
+    "typeRoots": [
+      "./node_modules/@types",
+      "./types"
+    ]
   },
   "include": [
     "src/**/*",
@@ -28,5 +35,6 @@
     ".expo",
     "babel.config.js",
     "metro.config.js"
-  ]
+  ],
+  "extends": "expo/tsconfig.base"
 }

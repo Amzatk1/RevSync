@@ -66,14 +66,14 @@ export interface UserProfile {
 export interface AuthSession {
   accessToken: string;
   refreshToken: string;
-  expiresIn: number;
+  expiresIn?: number;
   expiresAt: string;
   tokenType: string;
-  user: AuthUser;
+  user: any;
   
   // Session Metadata
-  sessionId: string;
-  deviceInfo: DeviceInfo;
+  sessionId?: string;
+  deviceInfo?: DeviceInfo;
   ipAddress?: string;
   location?: {
     country?: string;
@@ -81,10 +81,10 @@ export interface AuthSession {
   };
   
   // Security
-  requires2FA: boolean;
-  isVerified: boolean;
-  createdAt: string;
-  lastUsed: string;
+  requires2FA?: boolean;
+  isVerified?: boolean;
+  createdAt?: string;
+  lastUsed?: string;
 }
 
 export interface DeviceInfo {

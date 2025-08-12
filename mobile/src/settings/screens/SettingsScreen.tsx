@@ -8,8 +8,7 @@ import {
   Alert,
   SafeAreaView,
 } from 'react-native';
-import DeviceInfo from 'react-native-device-info';
-import * as RNLocalize from 'react-native-localize';
+import * as Device from 'expo-device';
 import { Theme } from '../../styles/theme';
 import {
   SettingsHeader,
@@ -17,6 +16,7 @@ import {
   SettingsSection,
   SettingsFooter,
 } from '../components';
+import { SectionHeader } from '../../components/ui';
 import {
   SettingsToggle,
   SettingsSection as SettingsSectionType,
@@ -75,11 +75,9 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation, onClose }) 
 
   const loadDeviceInfo = async () => {
     try {
-      const [model, systemName, systemVersion] = await Promise.all([
-        DeviceInfo.getModel(),
-        DeviceInfo.getSystemName(),
-        DeviceInfo.getSystemVersion(),
-      ]);
+      const model = Device.modelName || 'Unknown';
+      const systemName = Device.osName || (Platform.OS === 'ios' ? 'iOS' : 'Android');
+      const systemVersion = Device.osVersion || String(Platform.Version);
 
       setAppInfo(prev => ({
         ...prev,
@@ -174,11 +172,8 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation, onClose }) 
   ];
 
   const getTimezoneOptions = () => {
-    const timeZone = RNLocalize.getTimeZone();
-    const country = RNLocalize.getCountry();
-    
     return [
-      { label: `Auto (${timeZone})`, value: 'auto' },
+      { label: `Auto (System)`, value: 'auto' },
       { label: 'Pacific Time (PT)', value: 'America/Los_Angeles' },
       { label: 'Mountain Time (MT)', value: 'America/Denver' },
       { label: 'Central Time (CT)', value: 'America/Chicago' },
@@ -880,7 +875,7 @@ const SettingsScreen: React.FC<SettingsScreenProps> = ({ navigation, onClose }) 
     : settingsSections;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container}>
       <SettingsHeader
         onClose={onClose}
         searchQuery={searchQuery}

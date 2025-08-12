@@ -9,9 +9,12 @@ import {
   Dimensions,
   ScrollView,
   Platform,
+  Animated,
+  Easing,
 } from "react-native";
 import { useDispatch } from "react-redux";
-import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import type { ScrollViewProps } from "react-native";
+import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
 // Type fixes for React 18+ compatibility
@@ -21,6 +24,30 @@ import { PerformanceTracker } from "../config/monitoring";
 
 const { width, height } = Dimensions.get("window");
 const isIOS = Platform.OS === "ios";
+
+// Subtle motion for world‑class feel without changing layout
+const contentOpacity = useRef(new Animated.Value(0)).current;
+const contentTranslateY = useRef(new Animated.Value(12)).current;
+const ctaScale = useRef(new Animated.Value(1)).current;
+
+const runPageIntro = () => {
+  contentOpacity.setValue(0);
+  contentTranslateY.setValue(12);
+  Animated.parallel([
+    Animated.timing(contentOpacity, {
+      toValue: 1,
+      duration: 300,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }),
+    Animated.timing(contentTranslateY, {
+      toValue: 0,
+      duration: 300,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }),
+  ]).start();
+};
 
 interface WelcomeOnboardingScreenProps {
   navigation: any;
@@ -45,13 +72,18 @@ const WelcomeOnboardingScreen: React.FC<WelcomeOnboardingScreenProps> = ({
 }) => {
   const dispatch = useDispatch();
   const [currentPage, setCurrentPage] = useState(0);
-  const scrollViewRef = useRef<ScrollView>(null);
+  const scrollViewRef = useRef<React.ComponentRef<typeof ScrollView>>(null);
+
+  React.useEffect(() => {
+    runPageIntro();
+    // announce page change for screen readers
+  }, [currentPage]);
 
   const onboardingPages: OnboardingPage[] = [
     {
       id: "welcome",
       title: "Welcome to RevSync",
-      description: "Let's get you set up to unleash your bike's full potential.",
+      description: "Experience effortless motorcycle tuning and management, crafted for passionate riders. Get started in minutes—your best ride awaits.",
       image: "https://images.unsplash.com/photo-1558618047-3c8c76ca7d13?w=400&h=400&fit=crop&crop=center",
       backgroundColor: "#f8f9fa",
       titleColor: "#212529",
@@ -60,31 +92,31 @@ const WelcomeOnboardingScreen: React.FC<WelcomeOnboardingScreenProps> = ({
     },
     {
       id: "ai_powered",
-      title: "AI-Powered Tuning",
+      title: "AI‑Powered Tuning",
       subtitle: "Smart Technology",
-      description: "Our advanced AI analyzes your bike and riding style to recommend the perfect tunes, ensuring optimal performance and safety.",
+      description: "Let RevSync analyze your bike and riding habits to deliver personalized, optimized tunes—balancing peak performance and reliability.",
       image: "https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=400&h=400&fit=crop&crop=center",
       backgroundColor: "#f8f9fa",
-      titleColor: "#212529", 
+      titleColor: "#212529",
       descriptionColor: "#495057",
       buttonText: "Amazing!",
     },
     {
       id: "safety_first",
-      title: "Safety First",
-      subtitle: "Your Protection Matters", 
-      description: "Every tune is verified for safety. Our AI performs comprehensive analysis to ensure modifications won't harm your engine or performance.",
+      title: "Safety Comes Standard",
+      subtitle: "Your Protection Matters",
+      description: "Every adjustment is thoroughly checked for safety. RevSync’s advanced analysis helps protect your engine and keeps your ride dependable.",
       image: "https://images.unsplash.com/photo-1544197150-b99a580bb7a8?w=400&h=400&fit=crop&crop=center",
       backgroundColor: "#f8f9fa",
       titleColor: "#212529",
-      descriptionColor: "#495057", 
+      descriptionColor: "#495057",
       buttonText: "Got It",
     },
     {
       id: "your_garage",
-      title: "Build Your Garage", 
+      title: "Your Digital Garage",
       subtitle: "Manage Your Rides",
-      description: "Add all your motorcycles to your digital garage. Track modifications, maintenance, and tune history for each bike.",
+      description: "Easily add your motorcycles, track modifications and service, and keep a seamless record of every tune—all in one place.",
       image: "https://images.unsplash.com/photo-1558030006-450675393462?w=400&h=400&fit=crop&crop=center",
       backgroundColor: "#f8f9fa",
       titleColor: "#212529",
@@ -93,43 +125,44 @@ const WelcomeOnboardingScreen: React.FC<WelcomeOnboardingScreenProps> = ({
     },
     {
       id: "discover_tunes",
-      title: "Discover Perfect Tunes",
-      subtitle: "Endless Possibilities", 
-      description: "Browse thousands of verified tunes from creators worldwide. Filter by performance goals, riding style, and compatibility.",
+      title: "Explore World-Class Tunes",
+      subtitle: "Endless Possibilities",
+      description: "Browse a global library of verified tunes. Find the perfect match by filtering for your goals, riding style, and bike compatibility.",
       image: "https://images.unsplash.com/photo-1571068316344-75bc76f77890?w=400&h=400&fit=crop&crop=center",
-      backgroundColor: "#f8f9fa", 
+      backgroundColor: "#f8f9fa",
       titleColor: "#212529",
       descriptionColor: "#495057",
       buttonText: "Awesome!",
     },
     {
       id: "join_community",
-      title: "Join the Community",
-      subtitle: "Connect with Riders",
-      description: "Share experiences, ask questions, and learn from fellow motorcycle enthusiasts. Join discussions about tunes, bikes, and riding.",
+      title: "Connect & Share",
+      subtitle: "Join the RevSync Community",
+      description: "Ask questions, share your results, and learn from real riders. Get inspired and grow with a passionate, global community.",
       image: "https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=400&h=400&fit=crop&crop=center",
       backgroundColor: "#f8f9fa",
-      titleColor: "#212529", 
+      titleColor: "#212529",
       descriptionColor: "#495057",
       buttonText: "Perfect!",
     },
     {
       id: "ready",
-      title: "You're All Set!",
-      subtitle: "Ready to Ride",
-      description: "Welcome to the future of motorcycle tuning. Let's set up your profile and find your first perfect tune!",
+      title: "You’re Ready to Ride",
+      subtitle: "Let’s Get Started",
+      description: "Complete your profile and choose your first tune. Need help? Reach out to Amzat Karim at karimamzat26@gmail.com anytime.",
       image: "https://images.unsplash.com/photo-1568772585407-9361f9bf3a87?w=400&h=400&fit=crop&crop=center",
       backgroundColor: "#f8f9fa",
       titleColor: "#212529",
       descriptionColor: "#495057",
-      buttonText: "Let's Start!",
+      buttonText: "Let’s Start!",
     },
   ];
 
   const handleNext = async () => {
-    if (isIOS) {
+    // Light haptic tap on press (iOS/Android where available)
+    try {
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+    } catch {}
 
     if (currentPage < onboardingPages.length - 1) {
       const nextPage = currentPage + 1;
@@ -159,10 +192,11 @@ const WelcomeOnboardingScreen: React.FC<WelcomeOnboardingScreenProps> = ({
 
   const handlePageChange = (pageIndex: number) => {
     setCurrentPage(pageIndex);
+    runPageIntro();
   };
 
   const renderProgressDots = () => (
-    <View style={styles.progressContainer}>
+    <View style={styles.progressContainer} accessible accessibilityLabel={`Step ${currentPage + 1} of ${onboardingPages.length}`}>
       {onboardingPages.map((_, index) => (
         <View
           key={index}
@@ -184,41 +218,59 @@ const WelcomeOnboardingScreen: React.FC<WelcomeOnboardingScreenProps> = ({
 
       {/* Content */}
       <View style={styles.content}>
-        <View style={styles.imageContainer}>
-          <Image 
+        <Animated.View
+          style={[styles.imageContainer, { opacity: contentOpacity, transform: [{ translateY: contentTranslateY }] }]}
+          accessibilityIgnoresInvertColors
+          accessible
+          accessibilityRole="image"
+          accessibilityLabel={`${page.title} illustration`}
+        >
+          <Image
             source={{ uri: page.image }}
             style={styles.heroImage}
             resizeMode="cover"
           />
-        </View>
+        </Animated.View>
 
-        <View style={styles.textContainer}>
+        <Animated.View
+          style={[styles.textContainer, { opacity: contentOpacity, transform: [{ translateY: contentTranslateY }] }]}
+          accessible
+          accessibilityRole="summary"
+        >
           {page.subtitle && (
-            <Text style={[styles.subtitle, { color: "#0c7ff2" }]}>
+            <Text style={[styles.subtitle, { color: "#0c7ff2" }]} accessibilityRole="header">
               {page.subtitle}
             </Text>
           )}
-          <Text style={[styles.title, { color: page.titleColor }]}>
+          <Text style={[styles.title, { color: page.titleColor }]} accessibilityRole="header">
             {page.title}
           </Text>
-          <Text style={[styles.description, { color: page.descriptionColor }]}>
+          <Text style={[styles.description, { color: page.descriptionColor }]} allowFontScaling>
             {page.description}
           </Text>
-        </View>
+        </Animated.View>
       </View>
 
       {/* Footer */}
       <View style={styles.footer}>
         {renderProgressDots()}
-        <TouchableOpacity 
-          style={styles.continueButton}
+        <AnimatedTouchable
+          style={[styles.continueButton, { transform: [{ scale: ctaScale }] }]}
+          onPressIn={() => {
+            Animated.spring(ctaScale, { toValue: 0.97, useNativeDriver: true, speed: 20, bounciness: 4 }).start();
+          }}
+          onPressOut={() => {
+            Animated.spring(ctaScale, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 6 }).start();
+          }}
           onPress={handleNext}
           activeOpacity={0.9}
+          accessible
+          accessibilityRole="button"
+          accessibilityLabel={`${page.buttonText} – ${page.title}`}
+          testID={`onboarding-cta-${page.id}`}
         >
-          <Text style={styles.continueButtonText}>
-            {page.buttonText}
-          </Text>
-        </TouchableOpacity>
+          <Text style={styles.continueButtonText}>{page.buttonText}</Text>
+        </AnimatedTouchable>
       </View>
     </View>
   );
@@ -230,7 +282,7 @@ const WelcomeOnboardingScreen: React.FC<WelcomeOnboardingScreenProps> = ({
         horizontal
         pagingEnabled
         showsHorizontalScrollIndicator={false}
-        onMomentumScrollEnd={(event) => {
+        onMomentumScrollEnd={(event: Parameters<NonNullable<ScrollViewProps['onMomentumScrollEnd']>>[0]) => {
           const pageIndex = Math.round(event.nativeEvent.contentOffset.x / width);
           handlePageChange(pageIndex);
         }}
@@ -241,6 +293,8 @@ const WelcomeOnboardingScreen: React.FC<WelcomeOnboardingScreenProps> = ({
     </SafeAreaView>
   );
 };
+
+const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 
 const styles = StyleSheet.create({
   container: {
@@ -363,4 +417,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default WelcomeOnboardingScreen; 
+export default WelcomeOnboardingScreen;

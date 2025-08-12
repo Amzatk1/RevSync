@@ -1,7 +1,7 @@
 import React from "react";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Platform } from "react-native";
-import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import { MaterialCommunityIcons as Icon } from "@expo/vector-icons";
 
 // Type fixes for React 18+ compatibility
 const TypedIcon = Icon as any;
@@ -11,17 +11,21 @@ import MarketplaceScreen from "../screens/MarketplaceScreen";
 import { GarageScreen } from "../screens/GarageScreen";
 import { CommunityScreen } from "../screens/CommunityScreen";
 import { ProfileScreen } from "../screens/ProfileScreen";
+import AITunesScreen from "../screens/AITunesScreen";
 
 const Tab = createBottomTabNavigator();
 
 const BottomTabNavigator: React.FC = () => {
   return (
     <Tab.Navigator
-      screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused, color, size }) => {
+      screenOptions={({ route }: any) => ({
+        tabBarIcon: ({ focused, color, size }: any) => {
           let iconName: string;
 
           switch (route.name) {
+            case "AI Tunes":
+              iconName = focused ? "robot" : "robot-outline";
+              break;
             case "Marketplace":
               iconName = focused ? "store" : "store-outline";
               break;
@@ -63,6 +67,13 @@ const BottomTabNavigator: React.FC = () => {
         headerShown: false,
       })}
     >
+      <Tab.Screen
+        name="AI Tunes"
+        component={AITunesScreen}
+        options={{
+          tabBarLabel: "AI Tunes",
+        }}
+      />
       <Tab.Screen
         name="Marketplace"
         component={MarketplaceScreen}

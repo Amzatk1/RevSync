@@ -1,11 +1,9 @@
 import React, { useState } from "react";
 import { View, Switch } from "react-native";
-import {
-  GestureModal,
-  IntelligentCard,
-  SettingsRow,
-} from "../components/awardWinning";
-import { AwardWinningTheme as Theme } from "../styles/awardWinningTheme";
+import GestureModal from "../components/ui/GestureModal";
+import IntelligentCard from "../components/ui/IntelligentCard";
+import SettingsRow from "../components/ui/SettingsRow";
+import { Theme } from "../styles/theme";
 
 interface PrivacyPreferencesScreenProps {
   visible: boolean;

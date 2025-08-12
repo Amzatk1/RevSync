@@ -1,6 +1,5 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import Slider from '@react-native-community/slider';
+import { View, StyleSheet, TouchableOpacity, Text } from 'react-native';
 import { Theme } from '../../styles/theme';
 
 interface SettingsSliderProps {
@@ -18,40 +17,56 @@ const SettingsSlider: React.FC<SettingsSliderProps> = ({
   maximumValue,
   step,
 }) => {
+  const decrease = () => onValueChange(Math.max(minimumValue, value - step));
+  const increase = () => onValueChange(Math.min(maximumValue, value + step));
+
   return (
     <View style={styles.container}>
-      <Slider
-        style={styles.slider}
-        value={value}
-        onValueChange={onValueChange}
-        minimumValue={minimumValue}
-        maximumValue={maximumValue}
-        step={step}
-        minimumTrackTintColor={Theme.colors.accent.primary}
-        maximumTrackTintColor={Theme.colors.content.backgroundSubtle}
-        thumbStyle={styles.thumb}
-        trackStyle={styles.track}
-      />
+      <TouchableOpacity onPress={decrease} style={styles.button} accessibilityLabel="Decrease">
+        <Text style={styles.buttonText}>-</Text>
+      </TouchableOpacity>
+      <View style={styles.valueContainer}>
+        <Text style={styles.valueText}>{value}</Text>
+      </View>
+      <TouchableOpacity onPress={increase} style={styles.button} accessibilityLabel="Increase">
+        <Text style={styles.buttonText}>+</Text>
+      </TouchableOpacity>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    width: 120,
+    width: 140,
+    height: 36,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Theme.colors.content.backgroundSubtle,
+    borderRadius: 8,
+    paddingHorizontal: 8,
   },
-  slider: {
-    width: '100%',
-    height: 40,
+  button: {
+    width: 32,
+    height: 28,
+    borderRadius: 6,
+    backgroundColor: Theme.colors.content.backgroundElevated,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  thumb: {
-    backgroundColor: Theme.colors.accent.primary,
-    width: 20,
-    height: 20,
+  buttonText: {
+    color: Theme.colors.content.primary,
+    fontSize: 18,
+    fontWeight: '600',
   },
-  track: {
-    height: 4,
-    borderRadius: 2,
+  valueContainer: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  valueText: {
+    color: Theme.colors.content.primary,
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 

@@ -40,7 +40,8 @@ export interface MomentumScrollViewProps extends ScrollViewProps {
   intelligentBounce?: boolean;
 }
 
-const AnimatedScrollView = Animated.createAnimatedComponent(ScrollView);
+const AnimatedScrollView: any = (Animated as any).createAnimatedComponent(ScrollView as any);
+const AView: any = Animated.View as any;
 
 export const MomentumScrollView: React.FC<MomentumScrollViewProps> = ({
   children,
@@ -221,8 +222,8 @@ export const MomentumScrollView: React.FC<MomentumScrollViewProps> = ({
   };
 
   return (
-    <AnimatedScrollView {...enhancedProps}>
-      <Animated.View style={contentStyle}>{children}</Animated.View>
+    <AnimatedScrollView {...(enhancedProps as any)}>
+      <AView style={contentStyle}>{children}</AView>
     </AnimatedScrollView>
   );
 };

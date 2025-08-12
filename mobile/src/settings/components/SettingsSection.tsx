@@ -7,10 +7,12 @@ import {
   StyleSheet,
   Platform,
 } from 'react-native';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { MaterialCommunityIcons as Icon } from '@expo/vector-icons';
 import { Theme } from '../../styles/theme';
 import { SettingsSection as SettingsSectionType } from '../types';
 import SettingsSlider from './SettingsSlider';
+import SectionHeader from '../../components/ui/SectionHeader';
+import Badge from '../../components/ui/Badge';
 import SettingsSelect from './SettingsSelect';
 
 // Type fixes for React 18+ compatibility
@@ -150,9 +152,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ section }) => {
             </View>
             <View style={styles.itemRight}>
               {item.badge && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{item.badge}</Text>
-                </View>
+                <Badge label={item.badge} />
               )}
               <TypedIcon
                 name="chevron-right"
@@ -167,7 +167,7 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ section }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.sectionTitle}>{section.title}</Text>
+      <SectionHeader title={section.title} />
       <View style={styles.sectionCard}>
         {section.items.map(renderSettingsItem)}
       </View>

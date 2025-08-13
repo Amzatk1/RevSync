@@ -8,6 +8,7 @@
 
 import React, { createContext, useContext, useReducer, useEffect, ReactNode } from 'react';
 import AuthService from '../services/AuthService';
+import DjangoAuthService from '../services/DjangoAuthService';
 import {
   AuthContextType,
   AuthState,
@@ -27,6 +28,12 @@ import {
   BiometricConfig,
   OTPVerification,
 } from '../types/auth';
+
+// Configuration - use Django backend for development
+const USE_DJANGO_BACKEND = process.env.REACT_APP_USE_DJANGO_BACKEND !== 'false';
+const activeAuthService = USE_DJANGO_BACKEND ? DjangoAuthService : AuthService;
+
+console.log('🔧 Auth backend configured:', USE_DJANGO_BACKEND ? 'Django' : 'Supabase');
 
 // Initial auth state
 const initialState: AuthState = {
@@ -162,7 +169,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         // Get initial session
         try {
-          const { user, session } = await AuthService.getSession();
+          const { user, session } = USE_DJANGO_BACKEND 
+            ? await (activeAuthService as typeof DjangoAuthService).getCurrentUser()
+            : await (activeAuthService as typeof AuthService).getSession();
           if (session) {
             console.log('✅ Restored existing session');
             dispatch({
@@ -204,7 +213,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       dispatch({ type: 'SET_LOADING', payload: true });
       dispatch({ type: 'SET_ERROR', payload: null });
 
-      const result = await AuthService.signIn(credentials);
+      const result = await activeAuthService.signIn(credentials);
       
       if (result.success && result.data) {
         if (result.data.requires2FA) {
@@ -245,7 +254,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       dispatch({ type: 'SET_LOADING', payload: true });
       dispatch({ type: 'SET_ERROR', payload: null });
 
-      const result = await AuthService.signUp(data);
+      const result = await activeAuthService.signUp(data);
       
       if (result.success && result.data) {
         if (result.data.requiresVerification) {
@@ -282,7 +291,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       dispatch({ type: 'SET_LOADING', payload: true });
       
       if (state.session) {
-        await AuthService.signOut();
+        await activeAuthService.signOut();
       }
       
       dispatch({ type: 'LOGOUT' });
@@ -390,7 +399,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const checkAuthState = async (): Promise<void> => {
     try {
-      const { user, session } = await AuthService.getSession();
+      const { user, session } = USE_DJANGO_BACKEND 
+        ? await (activeAuthService as typeof DjangoAuthService).getCurrentUser()
+        : await (activeAuthService as typeof AuthService).getSession();
       if (user && session) {
         dispatch({
           type: 'LOGIN_SUCCESS',
@@ -457,7 +468,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const resetPassword = async (request: PasswordResetRequest): Promise<void> => {
-    await AuthService.resetPassword(request);
+    await activeAuthService.resetPassword(request);
   };
 
   const changePassword = async (request: PasswordChangeRequest): Promise<void> => {
@@ -509,7 +520,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const sendEmailVerification = async (): Promise<void> => {
-    await AuthService.sendEmailVerification();
+    await activeAuthService.sendEmailVerification();
   };
 
   const sendPhoneVerification = async (phoneNumber: string): Promise<void> => {

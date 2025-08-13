@@ -147,8 +147,8 @@ AUTH_USER_MODEL = 'users.User'
 # REST Framework Configuration
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'auth.authentication.SupabaseJWTAuthentication',
         'rest_framework_simplejwt.authentication.JWTAuthentication',
+        # 'auth.authentication.SupabaseJWTAuthentication',  # Disabled for testing
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',

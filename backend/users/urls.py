@@ -6,6 +6,12 @@ router = DefaultRouter()
 
 urlpatterns = [
     path('', include(router.urls)),
+    
+    # Authentication endpoints
+    path('auth/register/', views.UserRegistrationView.as_view(), name='user-register'),
+    path('auth/login/', views.UserLoginView.as_view(), name='user-login'),
+    
+    # Profile endpoints
     path('profile/', views.get_user_profile, name='get_user_profile'),
     path('profile/update/', views.update_user_profile, name='update_user_profile'),
     path('complete-onboarding/', views.complete_onboarding, name='complete_onboarding'),
